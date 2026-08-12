@@ -1,0 +1,972 @@
+{
+  "notes": "Culebra EVERYDAY menu catalog (not chalkboard specials). Source of truth for guests: https://fishcitygrill.olo.com/menu/fish-city-grill-culebra — Olo API is partner-locked, so this JSON mirrors that everyday menu for the bot. Chalkboard specials stay on the live photo feed.",
+  "categories": [
+    {
+      "id": "appetizers",
+      "label": "Appetizers",
+      "aliases": [
+        "appetizer",
+        "appetizers",
+        "apps",
+        "starters",
+        "starter"
+      ]
+    },
+    {
+      "id": "raw-bar",
+      "label": "Raw Bar",
+      "aliases": [
+        "raw bar",
+        "rawbar",
+        "oyster bar"
+      ]
+    },
+    {
+      "id": "soups-salads",
+      "label": "Soups & Salads",
+      "aliases": [
+        "soup",
+        "soups",
+        "salad",
+        "salads",
+        "soups and salads",
+        "soups & salads"
+      ]
+    },
+    {
+      "id": "entrees",
+      "label": "Entrees / Favorites",
+      "aliases": [
+        "entree",
+        "entrees",
+        "entrée",
+        "entrées",
+        "favorites",
+        "mains",
+        "main course",
+        "dinner plates",
+        "plates"
+      ]
+    },
+    {
+      "id": "tacos",
+      "label": "Tacos",
+      "aliases": [
+        "taco",
+        "tacos"
+      ]
+    },
+    {
+      "id": "sandwiches",
+      "label": "Sandwiches & Burgers",
+      "aliases": [
+        "sandwich",
+        "sandwiches",
+        "sandwhiches",
+        "sandwhiche",
+        "burger",
+        "burgers",
+        "po boy",
+        "po'boy",
+        "wrap",
+        "wraps"
+      ]
+    },
+    {
+      "id": "sides",
+      "label": "Sides",
+      "aliases": [
+        "side",
+        "sides",
+        "side dishes"
+      ]
+    },
+    {
+      "id": "desserts",
+      "label": "Desserts",
+      "aliases": [
+        "dessert",
+        "desserts",
+        "sweets"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "oyster-nachos",
+      "name": "Oyster Nachos",
+      "aliases": [
+        "oyster nachos"
+      ],
+      "category": "appetizers",
+      "onMenu": true,
+      "blurb": "Fried oysters, chipotle tartar, pico de gallo.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "fried"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "chargrilled-oysters",
+      "name": "Chargrilled Oysters",
+      "aliases": [
+        "chargrilled oysters",
+        "grilled oysters"
+      ],
+      "category": "appetizers",
+      "onMenu": true,
+      "blurb": "Choice of Cajun butter or garlic-herb butter.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "grilled"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "shrimp-cocktail",
+      "name": "Shrimp Cocktail",
+      "aliases": [
+        "shrimp cocktail"
+      ],
+      "category": "appetizers",
+      "onMenu": true,
+      "blurb": "Wild-caught shrimp with cocktail and tartar.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "chilled"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "coconut-shrimp",
+      "name": "Coconut Shrimp",
+      "aliases": [
+        "coconut shrimp"
+      ],
+      "category": "appetizers",
+      "onMenu": true,
+      "blurb": "Crispy coconut shrimp with spicy aioli & Thai sriracha.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "fried"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "calamari",
+      "name": "Crispy Calamari",
+      "aliases": [
+        "calamari",
+        "squid"
+      ],
+      "category": "appetizers",
+      "onMenu": true,
+      "blurb": "Parmesan, lemon aioli & Thai sriracha.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "fried"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "blue-crab-dip",
+      "name": "Blue Crab Dip",
+      "aliases": [
+        "blue crab dip",
+        "crab dip"
+      ],
+      "category": "appetizers",
+      "onMenu": true,
+      "blurb": "Warm crab dip with Ritz crust and crostini.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "baked"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "crab-cake",
+      "name": "Jumbo Lump Crab Cake",
+      "aliases": [
+        "crab cake",
+        "crabcake",
+        "crab cakes"
+      ],
+      "category": "appetizers",
+      "onMenu": true,
+      "blurb": "Arugula salad, lemon aioli.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "seared"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "mystic-mermaid",
+      "name": "Mystic Mermaid Oysters",
+      "aliases": [
+        "mystic mermaid",
+        "mystic mermaid oysters"
+      ],
+      "category": "raw-bar",
+      "onMenu": true,
+      "blurb": "Our proprietary Cape Cod oyster — briny with a sweet finish.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "raw"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "oysters-half-shell",
+      "name": "Oysters on the Half Shell",
+      "aliases": [
+        "oysters",
+        "oyster",
+        "half shell",
+        "raw oysters"
+      ],
+      "category": "raw-bar",
+      "onMenu": true,
+      "blurb": "Gulf and East Coast oysters.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "raw"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "ahi-tartare",
+      "name": "Ahi Tuna Tartare",
+      "aliases": [
+        "ahi",
+        "tuna tartare",
+        "ahi tuna"
+      ],
+      "category": "raw-bar",
+      "onMenu": true,
+      "blurb": "Avocado, cucumber, tataki sauce, crispy wontons.",
+      "proteins": [
+        "fish"
+      ],
+      "cook": [
+        "raw"
+      ],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "gumbo",
+      "name": "Gumbo",
+      "aliases": [
+        "gumbo"
+      ],
+      "category": "soups-salads",
+      "onMenu": true,
+      "blurb": "Shrimp, chicken, andouille, okra, dark roux.",
+      "proteins": [
+        "shellfish",
+        "chicken",
+        "pork"
+      ],
+      "cook": [
+        "simmered"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "chowder",
+      "name": "New England Clam Chowder",
+      "aliases": [
+        "chowder",
+        "clam chowder"
+      ],
+      "category": "soups-salads",
+      "onMenu": true,
+      "blurb": "New England clam chowder.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "simmered"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "red-beans",
+      "name": "Red Beans & Rice",
+      "aliases": [
+        "red beans",
+        "red beans and rice"
+      ],
+      "category": "soups-salads",
+      "onMenu": true,
+      "blurb": "Slow-simmered with andouille over white rice.",
+      "proteins": [
+        "pork"
+      ],
+      "cook": [
+        "simmered"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "white-balsamic-bleu",
+      "name": "White Balsamic Bleu Salad",
+      "aliases": [
+        "bleu salad",
+        "blue cheese salad",
+        "white balsamic"
+      ],
+      "category": "soups-salads",
+      "onMenu": true,
+      "blurb": "Spring mix, bleu cheese, candied pecans, white balsamic.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "cold"
+      ],
+      "fish": false,
+      "shellfish": false,
+      "notes": "Contains pecans (tree nuts) and bleu cheese."
+    },
+    {
+      "id": "super-greens-salmon",
+      "name": "Super Greens Salmon Salad",
+      "aliases": [
+        "salmon salad",
+        "super greens"
+      ],
+      "category": "soups-salads",
+      "onMenu": true,
+      "blurb": "Kale, Brussels, spinach, quinoa, cranberries, almonds.",
+      "proteins": [
+        "fish"
+      ],
+      "cook": [
+        "grilled"
+      ],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "omega-bowl",
+      "name": "The Omega Bowl",
+      "aliases": [
+        "omega bowl"
+      ],
+      "category": "soups-salads",
+      "onMenu": true,
+      "blurb": "Grilled salmon bowl with avocado, slaw, rice, sweet potatoes.",
+      "proteins": [
+        "fish"
+      ],
+      "cook": [
+        "grilled"
+      ],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "sea-bass",
+      "name": "Grilled Mediterranean Sea Bass",
+      "aliases": [
+        "sea bass",
+        "seabass",
+        "mediterranean sea bass"
+      ],
+      "category": "entrees",
+      "onMenu": true,
+      "blurb": "Chimichurri, garlic-herb potatoes, green beans.",
+      "proteins": [
+        "fish"
+      ],
+      "cook": [
+        "grilled"
+      ],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "redfish",
+      "name": "Grilled Texas Redfish & Shrimp",
+      "aliases": [
+        "redfish",
+        "texas redfish",
+        "red fish"
+      ],
+      "category": "entrees",
+      "onMenu": true,
+      "blurb": "Crawfish butter, dirty rice, green beans.",
+      "proteins": [
+        "fish",
+        "shellfish"
+      ],
+      "cook": [
+        "grilled"
+      ],
+      "fish": true,
+      "shellfish": true,
+      "notes": "Served with shrimp / crawfish butter."
+    },
+    {
+      "id": "salmon",
+      "name": "Garlic Caper Grilled Salmon",
+      "aliases": [
+        "salmon",
+        "grilled salmon",
+        "sockeye"
+      ],
+      "category": "entrees",
+      "onMenu": true,
+      "blurb": "Beurre blanc, mashed potatoes, garlic wilted spinach.",
+      "proteins": [
+        "fish"
+      ],
+      "cook": [
+        "grilled"
+      ],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "blackened-trout",
+      "name": "Blackened Rainbow Trout",
+      "aliases": [
+        "trout",
+        "rainbow trout",
+        "blackened trout",
+        "blackened rainbow trout"
+      ],
+      "category": "entrees",
+      "onMenu": true,
+      "blurb": "Garlic wilted spinach, white rice.",
+      "proteins": [
+        "fish"
+      ],
+      "cook": [
+        "blackened"
+      ],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "fish-chips",
+      "name": "Fish & Chips",
+      "aliases": [
+        "fish and chips",
+        "fish & chips",
+        "fish n chips",
+        "fried fish",
+        "fried cod",
+        "beer battered cod",
+        "beer-battered cod"
+      ],
+      "category": "entrees",
+      "onMenu": true,
+      "blurb": "Beer-battered cod & fries.",
+      "proteins": [
+        "fish"
+      ],
+      "cook": [
+        "fried"
+      ],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "chicken-milanese",
+      "name": "Chicken Milanese",
+      "aliases": [
+        "chicken milanese",
+        "milanese"
+      ],
+      "category": "entrees",
+      "onMenu": true,
+      "blurb": "Arugula, marinated tomatoes, Parmesan, lemon aioli.",
+      "proteins": [
+        "chicken"
+      ],
+      "cook": [
+        "fried"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "catfish",
+      "name": "U.S. Farm Raised Catfish",
+      "aliases": [
+        "catfish",
+        "cat fish",
+        "fried catfish"
+      ],
+      "category": "entrees",
+      "onMenu": true,
+      "blurb": "Farm-raised catfish.",
+      "proteins": [
+        "fish"
+      ],
+      "cook": [
+        "fried",
+        "grilled"
+      ],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "shrimp-platter",
+      "name": "Shrimp Platter",
+      "aliases": [
+        "shrimp platter",
+        "shrimp"
+      ],
+      "category": "entrees",
+      "onMenu": true,
+      "blurb": "Fried or grilled Gulf shrimp with hush puppies and two sides.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "fried",
+        "grilled"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "pick-2",
+      "name": "Pick 2 Combo",
+      "aliases": [
+        "pick 2",
+        "pick two",
+        "combo"
+      ],
+      "category": "entrees",
+      "onMenu": true,
+      "blurb": "Catfish, shrimp, or oysters — pick any two.",
+      "proteins": [
+        "fish",
+        "shellfish"
+      ],
+      "cook": [
+        "fried",
+        "grilled"
+      ],
+      "fish": true,
+      "shellfish": true
+    },
+    {
+      "id": "seafood-platter",
+      "name": "Seafood Platter",
+      "aliases": [
+        "seafood platter"
+      ],
+      "category": "entrees",
+      "onMenu": true,
+      "blurb": "Catfish, shrimp & oysters.",
+      "proteins": [
+        "fish",
+        "shellfish"
+      ],
+      "cook": [
+        "fried",
+        "grilled"
+      ],
+      "fish": true,
+      "shellfish": true
+    },
+    {
+      "id": "fish-tacos",
+      "name": "Serafin's Hand-Rolled Fish Tacos",
+      "aliases": [
+        "fish tacos",
+        "fish taco",
+        "cod tacos",
+        "serafin",
+        "fried fish tacos",
+        "fried cod tacos"
+      ],
+      "category": "tacos",
+      "onMenu": true,
+      "blurb": "Fried cod, cabbage, pico, cheese, ranchero — rolled & grilled.",
+      "proteins": [
+        "fish"
+      ],
+      "cook": [
+        "fried"
+      ],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "shrimp-tacos",
+      "name": "Honey-Chipotle Shrimp Tacos",
+      "aliases": [
+        "shrimp tacos",
+        "shrimp taco",
+        "honey chipotle"
+      ],
+      "category": "tacos",
+      "onMenu": true,
+      "blurb": "Corn tortillas, cilantro, ranch, avocado.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "grilled"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "fishwich",
+      "name": "The FishWich",
+      "aliases": [
+        "fishwich",
+        "fish sandwich",
+        "fish wich",
+        "fried fish sandwich",
+        "fried cod sandwich"
+      ],
+      "category": "sandwiches",
+      "onMenu": true,
+      "blurb": "Beer-battered cod, tartar, cheddar, lettuce.",
+      "proteins": [
+        "fish"
+      ],
+      "cook": [
+        "fried"
+      ],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "shrimp-po-boy",
+      "name": "Shrimp Po' Boy",
+      "aliases": [
+        "po boy",
+        "po'boy",
+        "shrimp po boy",
+        "shrimp poboy"
+      ],
+      "category": "sandwiches",
+      "onMenu": true,
+      "blurb": "Remoulade, lettuce, tomato, onion, pickles on Gambino's French bread.",
+      "proteins": [
+        "shellfish"
+      ],
+      "cook": [
+        "fried"
+      ],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "chicken-caesar-wrap",
+      "name": "Chicken Caesar Wrap",
+      "aliases": [
+        "caesar wrap",
+        "chicken wrap",
+        "chicken caesar"
+      ],
+      "category": "sandwiches",
+      "onMenu": true,
+      "blurb": "Blackened chicken, romaine, Parmesan in a flour tortilla.",
+      "proteins": [
+        "chicken"
+      ],
+      "cook": [
+        "blackened"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "burger",
+      "name": "Double Smash Bacon Cheeseburger",
+      "aliases": [
+        "burger",
+        "hamburger",
+        "cheeseburger",
+        "smash burger"
+      ],
+      "category": "sandwiches",
+      "onMenu": true,
+      "blurb": "Two smash patties, bacon, Worcestershire aioli, classic toppings.",
+      "proteins": [
+        "beef"
+      ],
+      "cook": [
+        "grilled"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "black-beans",
+      "name": "Cuban Black Beans & Rice",
+      "aliases": [
+        "black beans",
+        "cuban black beans"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Side option.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "simmered"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "mashed",
+      "name": "Buttermilk Mashed Potatoes",
+      "aliases": [
+        "mashed potatoes",
+        "mashed"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Side option.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "boiled"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "hush-puppies",
+      "name": "Hush Puppies",
+      "aliases": [
+        "hush puppies",
+        "hushpuppy"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Side option.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "fried"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "fries",
+      "name": "House-Seasoned Fries",
+      "aliases": [
+        "fries",
+        "french fries"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Side option.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "fried"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "coleslaw",
+      "name": "Virginia's Apple Cider Coleslaw",
+      "aliases": [
+        "coleslaw",
+        "slaw"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Side option.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "cold"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "spinach",
+      "name": "Garlic Wilted Spinach",
+      "aliases": [
+        "spinach",
+        "wilted spinach"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Side option.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "sauteed"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "seasonal-veggie",
+      "name": "Seasonal Veggie",
+      "aliases": [
+        "seasonal veggie",
+        "vegetable",
+        "veggies",
+        "vegetables"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Changes with what's available.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "varies"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "broccoli",
+      "name": "Broccoli",
+      "aliases": [
+        "broccoli",
+        "brocolli",
+        "brocoli",
+        "broccolli"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Side / veggie option when available.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "varies"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "mac",
+      "name": "Havarti-Cheddar Mac & Cheese",
+      "aliases": [
+        "mac and cheese",
+        "mac & cheese",
+        "macaroni",
+        "mac"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Side option.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "baked"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "brownie",
+      "name": "Brownie à la Mode",
+      "aliases": [
+        "brownie",
+        "brownie a la mode"
+      ],
+      "category": "desserts",
+      "onMenu": true,
+      "blurb": "Warm fudge brownie, vanilla ice cream, chocolate sauce.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "baked"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "key-lime",
+      "name": "Key Lime Pie",
+      "aliases": [
+        "key lime",
+        "key lime pie"
+      ],
+      "category": "desserts",
+      "onMenu": true,
+      "blurb": "Dessert option.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "cold"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "bread-pudding",
+      "name": "Bread Pudding",
+      "aliases": [
+        "bread pudding"
+      ],
+      "category": "desserts",
+      "onMenu": true,
+      "blurb": "Dessert option.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "baked"
+      ],
+      "fish": false,
+      "shellfish": false
+    }
+  ]
+}

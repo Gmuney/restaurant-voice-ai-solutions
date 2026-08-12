@@ -1,0 +1,96 @@
+{
+  "name": "Fish City Grill — Culebra",
+  "tagline": "Friendly Folks. Serious Seafood.",
+  "address": "7010 W Loop 1604 N, Suite 111, San Antonio, TX 78254",
+  "phone": "(210) 455-3474",
+  "website": "https://www.fishcitygrill.com/locations/culebra",
+  "menuUrl": "https://fishcitygrill.olo.com/menu/fish-city-grill-culebra",
+  "everydayMenuUrl": "https://fishcitygrill.olo.com/menu/fish-city-grill-culebra",
+  "orderOnlineUrl": "https://fishcitygrill.olo.com/menu/fish-city-grill-culebra",
+  "reservationsUrl": "https://www.fishcitygrill.com/reservations",
+  "dailySpecialsImageUrl": "https://pub-be7a92abeb294f138751bc6624987396.r2.dev/locations/culebra/latest.jpg",
+  "dailySpecialsPageUrl": "https://www.fishcitygrill.com/locations/culebra",
+  "dailySpecialsNotes": "Bot snapshots the chalkboard at ~11:00am (lunch) and ~4:30pm (dinner) America/Chicago, then OCRs once. Not a live camera poll. Chalkboard specials are NOT the everyday menu.",
+  "everydayMenuNotes": "Everyday / regular menu catalog for demo testing (separate from chalkboard).",
+  "timezone": "America/Chicago",
+  "hours": {
+    "monday": { "open": "11:00", "close": "21:00" },
+    "tuesday": { "open": "11:00", "close": "21:00" },
+    "wednesday": { "open": "11:00", "close": "21:00" },
+    "thursday": { "open": "11:00", "close": "21:00" },
+    "friday": { "open": "11:00", "close": "22:00" },
+    "saturday": { "open": "11:00", "close": "22:00" },
+    "sunday": { "open": "11:00", "close": "21:00" },
+    "display": "Mon–Thu & Sun 11am–9pm · Fri–Sat 11am–10pm"
+  },
+  "happyHour": {
+    "days": "Sunday–Friday",
+    "hours": "3pm–6pm",
+    "notes": "Select drinks and small plates. Ask your server for today's happy hour board."
+  },
+  "parking": "Public lot parking is available at the shopping center.",
+  "neighborhood": "Far West Side / Culebra corridor, San Antonio",
+  "cuisine": "Gulf Coast seafood, American, oyster bar",
+  "dressCode": "Casual — come as you are.",
+  "priceRange": "About $30 and under for most guests",
+  "payments": "We accept major credit cards (Visa, Mastercard, Amex, Discover).",
+  "wifi": "Ask your server for the Wi‑Fi details when you arrive.",
+  "allergies": {
+    "summary": "We can accommodate most allergy requests. Please tell your server about any allergies when you arrive.",
+    "shellfish": "Shellfish is limited for us — it touches most of our kitchen, so we cannot guarantee a shellfish-free environment. If you have a shellfish allergy, please call us so we can talk through options safely.",
+    "gluten": "We offer a gluten-free menu. Ask your server or see the gluten-free menu on our website.",
+    "vegetarian": "We have some non-seafood options (salads, chicken dishes, burger, sides). Ask your server what's best for vegetarian guests that day.",
+    "vegan": "Vegan options are more limited. Call ahead or ask a manager so we can guide you honestly."
+  },
+  "privateEvents": {
+    "available": true,
+    "summary": "Yes — we host private events. Call us at (210) 455-3474 and ask for a manager."
+  },
+  "catering": {
+    "available": true,
+    "summary": "Yes — we offer catering. Call (210) 455-3474 and ask about catering options for your group or event."
+  },
+  "policies": {
+    "maxOnlinePartySize": 8,
+    "allergyDisclaimer": "Please notify your server of severe allergies upon arrival so our kitchen can take extra precautions against cross-contamination.",
+    "managerOption": "please call (210) 455-3474 and ask for a manager, or ask for a manager when you arrive."
+  },
+  "reservations": {
+    "summary": "Yes — we take reservations (including via OpenTable). You can request one in this chat, book online, or call (210) 455-3474.",
+    "walkIns": "Walk-ins are welcome. Waits can happen when we're busy — reservations are the safest bet for a preferred time.",
+    "largeParty": "NEED_MANAGER_CONFIRM",
+    "largePartyAnswer": "Parties larger than 8 are outside our usual online booking size, but we may be able to accommodate your request. You’re welcome to speak with a manager at (210) 455-3474, or leave the details here and we’ll have a manager follow up.",
+    "kids": "Families are welcome. Ask your server about kid-friendly options.",
+    "highChairs": "High chairs / booster seats are typically available — ask when you arrive or note it on your reservation request.",
+    "splitChecks": "We can usually split checks — let your server know early in the meal.",
+    "corkage": "NEED_MANAGER_CONFIRM",
+    "corkageAnswer": "Ask a manager about corkage / bringing your own bottle — call (210) 455-3474.",
+    "cake": "You're welcome to ask about bringing a celebration cake — call ahead so we can plan with you: (210) 455-3474.",
+    "giftCards": "Gift cards are available: https://fishcitygrill.cardfoundry.com/"
+  },
+  "takeout": {
+    "summary": "To-go / takeout is available. Place an order in this chat, call (210) 455-3474, or order online."
+  },
+  "delivery": {
+    "summary": "For delivery options, check our online ordering page or call the restaurant: https://fishcitygrill.olo.com/ · (210) 455-3474"
+  },
+  "accessibility": {
+    "summary": "If you need accessibility details (wheelchair access, seating, etc.), call us at (210) 455-3474 and we'll help you plan."
+  },
+  "pets": {
+    "summary": "NEED_MANAGER_CONFIRM",
+    "answer": "Pet / patio pet policy can vary — please call (210) 455-3474 to confirm before you visit with a pet."
+  },
+  "outdoor": {
+    "summary": "NEED_MANAGER_CONFIRM",
+    "answer": "Ask us about patio / outdoor seating availability when you call or reserve — it can change with weather and demand: (210) 455-3474."
+  },
+  "alcohol": {
+    "summary": "Yes — we serve beer, wine, cocktails, and mocktails. Happy Hour Sun–Fri 3–6pm."
+  },
+  "rawBar": {
+    "summary": "Yes — we have a raw bar with oysters (including Mystic Mermaid), plus items like ahi tuna tartare."
+  },
+  "demoDisclaimer": "This is a demo text assistant for Fish City Grill — Culebra. For urgent issues or allergy concerns, please call the restaurant directly.",
+  "callUs": "Please call us at (210) 455-3474 and ask for a manager — they'll give you the most accurate answer."
+}
