@@ -18,26 +18,43 @@ An **AI-powered guest agent** that answers FAQs, hours, location, and menu quest
 
 ---
 
-## Day 1 progress (completed)
-
-Built and demoed the full messaging pilot on the VPS:
+## Pilot status (messaging)
 
 | Deliverable | Status |
 |-------------|--------|
 | Telegram guest assistant live | Done |
 | Knowledge base (restaurant, FAQ, everyday menu) | Done |
-| Chalkboard specials — scheduled snapshots (~11am / ~4:30pm) + OCR text | Done |
-| Reservations & to-go intake with manager approve/decline | Done |
-| Demo 86 / sold-out board (`/86`, `/un86`, `/86list`) | Done |
+| Chalkboard specials — auto refresh **11:00am** & **4:30pm** America/Chicago + OCR | Done |
+| Demo reservations (adults/kids, time, booth/table/patio; guest confirm, **no manager ping**) | Done |
+| To-go intake with manager approve/decline | Done |
+| Real-time 86 board (`86 redfish`, `un86 …`, `86 list`) | Done |
+| Side substitutions — “yes, we can change out any side items” | Done |
 | Allergy & dietary answers + safety disclaimer | Done |
-| Multi-part questions in one reply (party + seating + allergens) | Done |
-| Large-party policy (usual online size **8**; “may accommodate” + manager option) | Done |
-| Gemini chat with **full message history** (not single-prompt) | Done |
+| Large-party policy (max **12**; larger → transfer to manager) | Done |
+| Multi-part questions in one reply | Done |
+| Gemini chat with **full message history** | Done |
 | Express `POST /chat` API | Done |
-| Clean git repo + professional project README | Done |
 
-### Manager tools shipped
-`/specials` · `/setspecials` · `/rereadboard` · `/reservations` · `/orders` · `/clearchat` · `/86` family
+### Guest demo — reservation
+
+Say something like:
+
+> I wanted to make a reservation for 4 today at 5pm
+
+The bot asks for **adults / kids**, fills in date & time when provided, asks **booth / table / patio**, then **confirms with the guest**. No Telegram ping is sent to managers. Managers can still review with `/reservations`.
+
+### Manager tools
+
+| Command | What it does |
+|---------|----------------|
+| `86 redfish` | Mark item sold out (slash optional) |
+| `un86 redfish` | Put item back on |
+| `86 list` | Show today’s 86 board |
+| `/reservations` | Recent bookings (demo auto-confirms) |
+| `/orders` | Pending to-go requests |
+| `/specials` · `/setspecials` · `/rereadboard` | Chalkboard photo / text |
+| `/clearchat` | Reset AI history for this chat |
+| `/managerhelp` | Command list |
 
 ---
 
@@ -45,21 +62,21 @@ Built and demoed the full messaging pilot on the VPS:
 
 ```
 src/
-  telegram.js       Telegram bot + manager tools
+  telegram.js       Telegram bot + manager tools + reservation demo
   server.js         Express POST /chat API
   ai-chat.js        Gemini + conversation history
   system-prompt.js  Knowledge → system instructions
   reply.js          FAQ / policy engine
   menu-check.js     Menu availability & dietary guides
   specials.js       Chalkboard specials Q&A
-  read-board.js     Snapshot + OCR pipeline
-  store.js          Sessions, orders, chat history
+  read-board.js     Snapshot scheduler + OCR pipeline
+  store.js          Sessions, orders, reservations, chat history
 knowledge/
   restaurant.json   Location, hours, policies
   faq.json          FAQ intents
   menu-items.json   Everyday menu catalog
 scripts/
-  install-board-cron.sh
+  install-board-cron.sh   Backup cron (11:00 / 16:30 Chicago)
 ```
 
 Secrets (`.env`), runtime `data/`, and `node_modules/` are gitignored.
@@ -87,11 +104,13 @@ npm run test:replies
 | `GEMINI_CHAT_MODEL` | Chat model (default `gemini-flash-latest`) |
 | `PORT` | Chat API port |
 
-Optional chalkboard cron:
+Optional chalkboard cron (bot also schedules in-process):
 
 ```bash
 sudo bash scripts/install-board-cron.sh
 ```
+
+Systemd (this VPS): `fish-city-telegram.service`
 
 ---
 
@@ -116,6 +135,16 @@ Or full history:
   ]
 }
 ```
+
+---
+
+## Policies (pilot)
+
+- **Max party size:** 12 online; larger → transfer to manager  
+- **Sides:** yes — change out any side items  
+- **86:** managers type `86 <item>` in Telegram for real-time sold-out  
+- **Specials board:** snapshot at 11:00am lunch and 4:30pm dinner (Chicago)  
+- **Reservations (demo):** guest confirmation only; managers poll `/reservations`
 
 ---
 

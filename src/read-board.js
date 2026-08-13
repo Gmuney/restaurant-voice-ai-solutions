@@ -538,12 +538,72 @@ export async function reocrSnapshot(snapshotPath) {
   return cache;
 }
 
-/** No continuous polling — cron handles 11am / 4:30pm snapshots. */
+const LUNCH_MINUTES = 11 * 60; // 11:00am America/Chicago
+const EVENING_MINUTES = 16 * 60 + 30; // 4:30pm America/Chicago
+const SCHEDULE_TICK_MS = 30_000;
+
+/** Which scheduled window should be captured right now (exact clock + catch-up). */
+function dueSnapshotWindow(now = new Date()) {
+  const { dateKey, minutes } = chicagoParts(now);
+  const cached = readCachedBoard();
+  const have = (window) =>
+    cached?.boardWindow?.dateKey === dateKey &&
+    cached?.boardWindow?.window === window &&
+    Boolean(cached?.snapshotPath);
+
+  // At/after 4:30pm → evening board
+  if (minutes >= EVENING_MINUTES) {
+    if (!have("evening")) return { dateKey, window: "evening" };
+    return null;
+  }
+  // At/after 11:00am → lunch board
+  if (minutes >= LUNCH_MINUTES) {
+    if (!have("lunch")) return { dateKey, window: "lunch" };
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Auto-refresh specials at 11:00am and 4:30pm America/Chicago.
+ * Also catch-up if the bot was down at the exact minute (once per window/day).
+ * System cron can still run as a backup.
+ */
 export function startBoardRefreshLoop() {
   const cached = readCachedBoard();
   const fresh = isBoardCacheFresh(cached);
   console.log(
-    "[board] snapshot mode: cron at 11:00am & 4:30pm America/Chicago (no live polling)",
-    fresh ? `| serving ${cached.boardWindow?.window} snapshot` : "| no fresh snapshot yet — use /rereadboard"
+    "[board] auto-refresh: 11:00am & 4:30pm America/Chicago",
+    fresh
+      ? `| serving ${cached.boardWindow?.window} snapshot`
+      : "| no fresh snapshot yet — will catch up when due, or use /rereadboard"
   );
+
+  let running = false;
+  const tick = async () => {
+    if (running || inFlight) return;
+    const due = dueSnapshotWindow();
+    if (!due) return;
+    running = true;
+    console.log(
+      `[board] scheduled refresh starting (${due.window} ${due.dateKey})…`
+    );
+    try {
+      await snapshotBoard(due.window);
+      console.log(`[board] scheduled ${due.window} refresh complete`);
+    } catch (err) {
+      console.error(
+        `[board] scheduled ${due.window} refresh failed:`,
+        err.message || err
+      );
+    } finally {
+      running = false;
+    }
+  };
+
+  // Small delay so Telegram polling starts first
+  setTimeout(() => {
+    tick();
+    setInterval(tick, SCHEDULE_TICK_MS);
+  }, 5_000);
 }

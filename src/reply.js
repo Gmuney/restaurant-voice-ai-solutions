@@ -75,9 +75,9 @@ function hoursAnswer() {
 function largePartyAnswer(partySize = null) {
   const base =
     restaurant.reservations?.largePartyAnswer ||
-    `Parties larger than ${MAX_ONLINE_PARTY} are outside our usual online booking size, but we may be able to accommodate your request. You’re welcome to speak with a manager at ${restaurant.phone}, or leave the details here and we’ll have a manager follow up.`;
+    `Our maximum party size for booking here is ${MAX_ONLINE_PARTY}. For parties larger than ${MAX_ONLINE_PARTY}, I’ll transfer you to a manager — please call ${restaurant.phone} and ask for a manager.`;
   if (partySize && partySize > MAX_ONLINE_PARTY) {
-    return `For a party of ${partySize}, we may be able to accommodate your request. Our usual online booking size is ${MAX_ONLINE_PARTY} or fewer — you’re welcome to speak with a manager at ${restaurant.phone}, or leave the details here and we’ll have a manager follow up.`;
+    return `A party of ${partySize} is over our maximum booking size of ${MAX_ONLINE_PARTY}. I’ll transfer you to a manager — please call ${restaurant.phone} and ask for a manager, and I’ll also flag a manager here to follow up.`;
   }
   return base;
 }
@@ -158,8 +158,10 @@ function resolveAnswer(item) {
 function extractPartySize(text) {
   const m =
     String(text).match(
-      /\b(?:party of|table for|group of|party for)\s*(\d{1,2})\b/i
-    ) || String(text).match(/\b(\d{1,2})\s*(?:people|guests|of us)\b/i);
+      /\b(?:party of|table for|group of|party for|reservation for|reservations? for)\s*(\d{1,2})\b/i
+    ) ||
+    String(text).match(/\b(?:make a reservation|book(?:ing)?)\s+for\s+(\d{1,2})\b/i) ||
+    String(text).match(/\b(\d{1,2})\s*(?:people|guests|of us)\b/i);
   return m ? Number(m[1]) : null;
 }
 
@@ -169,7 +171,21 @@ function isSeatingPreference(text) {
   );
 }
 
+function isSideSwap(text) {
+  return /\b(change|swap|switch|substitut|replace|different|another|switch out|change out|swap out).{0,40}\bsides?\b|\bsides?\b.{0,40}\b(change|swap|switch|substitut|replace|different|another)\b/i.test(
+    text
+  );
+}
+
+function sideSwapAnswer() {
+  return (
+    restaurant.policies?.sideSubstitutions ||
+    "Yes — we can change out any side items. Just tell your server (or note it on your to-go order) which side you’d like instead."
+  );
+}
+
 function isCustomKitchenMod(text) {
+  if (isSideSwap(text)) return false;
   return /\b(substitut|modify|modification|custom (order|request)|special request|leave off|hold the|no onions?|extra crispy|make it without|can you (make|do|prepare))\b/i.test(
     text
   );
@@ -219,6 +235,14 @@ export function generateReply(rawMessage) {
       "• LARGE PARTY questions",
       "• HUMAN (call the restaurant)",
     ].join("\n");
+  }
+
+  if (isSideSwap(text)) {
+    const otherHits = findAllFaq(lower).filter((i) => i.id !== "side-swap");
+    const parts = [sideSwapAnswer()];
+    for (const hit of otherHits) parts.push(resolveAnswer(hit));
+    if (isSeatingPreference(text)) parts.push(MANAGER_OPTION);
+    return parts.join("\n\n");
   }
 
   const partySize = extractPartySize(text);

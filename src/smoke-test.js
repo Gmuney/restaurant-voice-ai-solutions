@@ -7,7 +7,8 @@ import {
 
 const samples = [
   "how big can my party be when reserving",
-  "can i book a party of 8?",
+  "can i book a party of 12?",
+  "party of 15 for saturday",
   "book a table for 4",
   "are you open and do you have gluten free options",
   "shellfish allergy",

@@ -10,7 +10,7 @@
   "reservationsUrl": "https://www.fishcitygrill.com/reservations",
   "dailySpecialsImageUrl": "https://pub-be7a92abeb294f138751bc6624987396.r2.dev/locations/culebra/latest.jpg",
   "dailySpecialsPageUrl": "https://www.fishcitygrill.com/locations/culebra",
-  "dailySpecialsNotes": "Bot snapshots the chalkboard at ~11:00am (lunch) and ~4:30pm (dinner) America/Chicago, then OCRs once. Not a live camera poll. Chalkboard specials are NOT the everyday menu.",
+  "dailySpecialsNotes": "Bot snapshots the chalkboard at 11:00am (lunch) and 4:30pm (dinner) America/Chicago, then OCRs once. Not a live camera poll. Chalkboard specials are NOT the everyday menu.",
   "everydayMenuNotes": "Everyday / regular menu catalog for demo testing (separate from chalkboard).",
   "timezone": "America/Chicago",
   "hours": {
@@ -51,15 +51,16 @@
     "summary": "Yes — we offer catering. Call (210) 455-3474 and ask about catering options for your group or event."
   },
   "policies": {
-    "maxOnlinePartySize": 8,
+    "maxOnlinePartySize": 12,
     "allergyDisclaimer": "Please notify your server of severe allergies upon arrival so our kitchen can take extra precautions against cross-contamination.",
-    "managerOption": "please call (210) 455-3474 and ask for a manager, or ask for a manager when you arrive."
+    "managerOption": "please call (210) 455-3474 and ask for a manager, or ask for a manager when you arrive.",
+    "sideSubstitutions": "Yes — we can change out any side items. Just tell your server (or note it on your to-go order) which side you’d like instead."
   },
   "reservations": {
     "summary": "Yes — we take reservations (including via OpenTable). You can request one in this chat, book online, or call (210) 455-3474.",
     "walkIns": "Walk-ins are welcome. Waits can happen when we're busy — reservations are the safest bet for a preferred time.",
     "largeParty": "NEED_MANAGER_CONFIRM",
-    "largePartyAnswer": "Parties larger than 8 are outside our usual online booking size, but we may be able to accommodate your request. You’re welcome to speak with a manager at (210) 455-3474, or leave the details here and we’ll have a manager follow up.",
+    "largePartyAnswer": "Our maximum party size for booking here is 12. For parties larger than 12, I’ll transfer you to a manager — please call (210) 455-3474 and ask for a manager, or stay here and I’ll flag a manager to follow up.",
     "kids": "Families are welcome. Ask your server about kid-friendly options.",
     "highChairs": "High chairs / booster seats are typically available — ask when you arrive or note it on your reservation request.",
     "splitChecks": "We can usually split checks — let your server know early in the meal.",
