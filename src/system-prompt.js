@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { restaurant, MAX_ONLINE_PARTY, ALLERGY_DISCLAIMER } from "./reply.js";
 import { getSoldOut } from "./store.js";
 import { readCachedBoard } from "./read-board.js";
+import { languagePromptBlock } from "./language.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -15,7 +16,7 @@ function loadJson(rel) {
  * System instruction for the conversational model.
  * Grounded in uploaded knowledge (menus, policies, allergens) + reply rules.
  */
-export function buildSystemPrompt() {
+export function buildSystemPrompt({ language = "en" } = {}) {
   const faq = loadJson("../knowledge/faq.json");
   const menu = loadJson("../knowledge/menu-items.json");
   const board = readCachedBoard();
@@ -73,10 +74,10 @@ RULES FOR SPECIFIC SCENARIOS:
    - ALWAYS include this safety disclaimer verbatim when allergies are discussed:
      "${ALLERGY_DISCLAIMER}"
 4. Side substitutions:
-   - If asked whether sides can be changed / swapped / substituted: say clearly — Yes, we can change out any side items. Guests can tell their server or note it on a to-go order.
+   - If asked whether sides can be changed / swapped / substituted: say clearly — Yes, we can change out any side item for our other side items that we have listed. Guests can tell their server or note it on a to-go order which listed side they want instead.
 5. Fallback Rule:
    - If a request involves seating preferences (e.g., specific booths) or other custom kitchen modifications not in your documents (not simple side swaps), answer what you know and provide the option to speak to a manager (${restaurant.phone}).
-
+${languagePromptBlock(language)}
 Style: friendly, concise, SMS/Telegram-length. Prefer plain text. If unsure, say so and offer ${restaurant.phone}.
 
 === FAQ / POLICIES ===

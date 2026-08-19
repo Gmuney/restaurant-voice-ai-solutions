@@ -200,6 +200,21 @@ export function getChatMessages(chatId) {
   return db.chats[String(chatId)]?.messages || [];
 }
 
+/** Guest reply language for this chat: "en" | "es" (default English until guest speaks Spanish). */
+export function getChatLang(chatId) {
+  return getChatHistoryDb().chats[String(chatId)]?.language || null;
+}
+
+export function setChatLang(chatId, language) {
+  const db = getChatHistoryDb();
+  const key = String(chatId);
+  if (!db.chats[key]) db.chats[key] = { messages: [], updatedAt: null };
+  db.chats[key].language = language === "es" ? "es" : "en";
+  db.chats[key].updatedAt = new Date().toISOString();
+  writeJson("chat-history.json", db);
+  return db.chats[key].language;
+}
+
 export function appendChatMessage(chatId, message) {
   const db = getChatHistoryDb();
   const key = String(chatId);

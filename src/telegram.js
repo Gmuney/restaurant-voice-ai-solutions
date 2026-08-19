@@ -31,6 +31,8 @@ import {
   newId,
   clearChatMessages,
   appendChatMessage,
+  getChatLang,
+  setChatLang,
 } from "./store.js";
 import {
   specialsImageUrl,
@@ -50,7 +52,29 @@ import {
   answerMenuGuide,
   findMenuItem,
 } from "./menu-check.js";
-import { generateAiReply } from "./ai-chat.js";
+import { generateAiReply, translateToSpanish } from "./ai-chat.js";
+import {
+  resolveGuestLanguage,
+  ES,
+  seatingLabel,
+  cleanGuestText,
+  isPureGreeting,
+} from "./language.js";
+
+function chatLanguage(chatId, text) {
+  return resolveGuestLanguage(chatId, text, {
+    getLang: getChatLang,
+    setLang: setChatLang,
+  });
+}
+
+/** English replies stay English; Spanish guests get Spanish (AI or translated FAQ). */
+async function sendGuest(chatId, text, lang = "en") {
+  let out = String(text || "");
+  if (lang === "es") out = await translateToSpanish(out);
+  await bot.sendMessage(chatId, out.slice(0, 4000));
+  return out;
+}
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
@@ -572,45 +596,58 @@ bot.on("callback_query", async (query) => {
 });
 
 const RES_TRIGGERS =
-  /\b(i wanted to make a reserv|want(ed)? to (make a )?reserv|make a reserv|book a table|book(ing)?\b.{0,20}\btable|party of\s*\d|table for\s*\d|\breservation\b)/i;
+  /\b(i wanted to make a reserv|want(ed)? to (make a )?reserv|make a reserv|book a table|book(ing)?\b.{0,20}\btable|party of\s*\d|table for\s*\d|\breservation\b|reservaci[oó]n|quiero reservar|quisiera reservar|reservar (una )?mesa|mesa para\s*\d)\b/i;
 
 /** Start booking flow — not pure FAQ like "do you take reservations?" */
 function wantsToBookReservation(text) {
   const t = String(text || "");
   const infoOnly =
-    /\b(do you (take|accept)|can i|taking|accept)\b.{0,20}\breserv/i.test(t) &&
-    !/\b(for\s*\d|today|tomorrow|\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\b/i.test(
+    /\b(do you (take|accept)|can i|taking|accept|aceptan|toman)\b.{0,24}\breserv/i.test(
+      t
+    ) &&
+    !/\b(for\s*\d|para\s*\d|today|tomorrow|hoy|ma[nñ]ana|\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\b/i.test(
       t
     );
   if (infoOnly) return false;
   return RES_TRIGGERS.test(t);
 }
 const CANCEL_TRIGGERS =
-  /\b(cancel (my )?reserv|cancel (my )?booking|cancel table)\b/i;
+  /\b(cancel (my )?reserv|cancel (my )?booking|cancel table|cancelar (mi )?reserv)/i;
 const CHANGE_TRIGGERS =
-  /\b(change (my )?reserv|modify (my )?reserv|reschedule)\b/i;
+  /\b(change (my )?reserv|modify (my )?reserv|reschedule|cambiar (mi )?reserv|reprogramar)\b/i;
 const ORDER_TRIGGERS =
-  /\b(to[- ]?go|takeout|take out|place an order|order food|to go order)\b/i;
+  /\b(to[- ]?go|takeout|take out|place an order|order food|to go order|para llevar|orden para llevar|quiero ordenar)\b/i;
 const SPECIALS_TRIGGERS =
-  /\b(specials?|chalk\s*-?\s*boards?|daily special|specials photo|today'?s special|what'?s on (the )?board)\b/i;
+  /\b(specials?|chalk\s*-?\s*boards?|daily special|specials photo|today'?s special|what'?s on (the )?board|especiales|especiales de hoy|pizarra)\b/i;
 
 function parseReservationHints(text) {
   const t = String(text || "");
-  const partySize = extractPartySize(t);
+  const partySize =
+    extractPartySize(t) ||
+    (() => {
+      const m = t.match(/\b(?:mesa para|para)\s*(\d{1,2})\b/i);
+      return m ? Number(m[1]) : null;
+    })();
   const timeM = t.match(/\b(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\b/i);
   let date = null;
-  if (/\btoday\b/i.test(t)) date = "today";
-  else if (/\btomorrow\b/i.test(t)) date = "tomorrow";
+  if (/\b(today|hoy)\b/i.test(t)) date = /\bhoy\b/i.test(t) ? "hoy" : "today";
+  else if (/\b(tomorrow|ma[nñ]ana)\b/i.test(t))
+    date = /\bma[nñ]ana\b/i.test(t) ? "mañana" : "tomorrow";
   else {
     const d = t.match(
-      /\b((?:mon|tues|wednes|thurs|fri|satur|sun)day|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\b/i
+      /\b((?:mon|tues|wednes|thurs|fri|satur|sun)day|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\b/i
     );
     if (d) date = d[1];
   }
   let seating = null;
   if (/\bpatio\b/i.test(t)) seating = "patio";
-  else if (/\bbooth\b/i.test(t)) seating = "booth";
-  else if (/\btable\b/i.test(t) && !/\btable for\b/i.test(t)) seating = "table";
+  else if (/\bbooth\b/i.test(t) || /\bcabina\b/i.test(t)) seating = "booth";
+  else if (
+    /\b(table|mesa)\b/i.test(t) &&
+    !/\b(table for|mesa para)\b/i.test(t)
+  ) {
+    seating = "table";
+  }
   return {
     partySize: partySize || null,
     time: timeM ? timeM[1].replace(/\s+/g, "").toLowerCase() : null,
@@ -621,38 +658,54 @@ function parseReservationHints(text) {
 
 function parseAdultsKids(text) {
   const t = String(text || "").trim();
-  const adultsM = t.match(/(\d+)\s*adults?/i);
-  const kidsM = t.match(/(\d+)\s*(?:kids?|children|child)\b/i);
+  const adultsM = t.match(/(\d+)\s*adultos?/i) || t.match(/(\d+)\s*adults?/i);
+  const kidsM =
+    t.match(/(\d+)\s*(?:ni[nñ]os?|niñas?|children|child|kids?)\b/i);
   if (adultsM || kidsM) {
     return {
       adults: adultsM ? Number(adultsM[1]) : 0,
       kids: kidsM ? Number(kidsM[1]) : 0,
     };
   }
-  const pair = t.match(/^(\d+)\s*(?:and|&|\/|,)\s*(\d+)\s*$/i);
+  const pair = t.match(/^(\d+)\s*(?:and|&|\/|,|y)\s*(\d+)\s*$/i);
   if (pair) return { adults: Number(pair[1]), kids: Number(pair[2]) };
-  if (/^(all\s+)?adults?\s*$/i.test(t)) return null; // need party size context
+  if (/^(all\s+)?adults?\s*$/i.test(t) || /^solo adultos?\s*$/i.test(t))
+    return null;
   return null;
 }
 
 function parseSeatingChoice(text) {
   const t = String(text || "").toLowerCase();
   if (/\bpatio\b/.test(t)) return "patio";
-  if (/\bbooth\b/.test(t)) return "booth";
-  if (/\btable\b/.test(t)) return "table";
+  if (/\bbooth\b/.test(t) || /\bcabina\b/.test(t)) return "booth";
+  if (/\btable\b/.test(t) || /\bmesa\b/.test(t)) return "table";
   return null;
 }
 
 async function transferLargeParty(msg, n) {
   const chatId = msg.chat.id;
+  const lang = getChatLang(chatId) || "en";
   setSession(chatId, null);
-  await bot.sendMessage(chatId, largePartyAnswer(n));
+  await sendGuest(chatId, largePartyAnswer(n), lang);
   await notifyManagers(
     `📞 TRANSFER TO MANAGER — party of ${n} (max ${MAX_ONLINE_PARTY})\nGuest: ${displayName(msg)} (chat ${chatId})\nThey want a reservation larger than our booking max. Please call/text them back.`
   );
 }
 
-function nextReservationPrompt(data) {
+function nextReservationPrompt(data, lang = "en") {
+  if (lang === "es") {
+    if (data.adults == null || data.kids == null) {
+      if (data.partySize) {
+        return ES.adultsKidsWithParty(data.partySize, data.date, data.time);
+      }
+      return ES.adultsKids;
+    }
+    if (!data.date) return ES.date;
+    if (!data.time) return ES.time;
+    if (!data.seating) return ES.seating;
+    if (!data.name) return ES.name;
+    return null;
+  }
   if (data.adults == null || data.kids == null) {
     if (data.partySize) {
       return `Got it — party of ${data.partySize}${data.date ? ` ${data.date}` : ""}${data.time ? ` at ${data.time}` : ""}.\n\nHow many adults and how many kids? (ex: 3 adults, 1 kid)`;
@@ -679,6 +732,7 @@ function reservationStepFor(data) {
 
 async function finalizeDemoReservation(msg, data) {
   const chatId = msg.chat.id;
+  const lang = getChatLang(chatId) || "en";
   const adults = Number(data.adults) || 0;
   const kids = Number(data.kids) || 0;
   const partySize = adults + kids;
@@ -702,6 +756,22 @@ async function finalizeDemoReservation(msg, data) {
   });
   setSession(chatId, null);
   // Demo: confirm with guest only — no manager ping. Managers can /reservations.
+  if (lang === "es") {
+    await bot.sendMessage(
+      chatId,
+      ES.confirmed(
+        name,
+        adults,
+        kids,
+        partySize,
+        data.date,
+        data.time,
+        seatingLabel(data.seating, "es"),
+        res.id
+      )
+    );
+    return;
+  }
   await bot.sendMessage(
     chatId,
     [
@@ -719,6 +789,7 @@ async function finalizeDemoReservation(msg, data) {
 }
 
 async function startReservationWizard(chatId, hints = {}, msg = null) {
+  const lang = getChatLang(chatId) || "en";
   const data = {
     name: null,
     adults: null,
@@ -734,18 +805,22 @@ async function startReservationWizard(chatId, hints = {}, msg = null) {
   }
   const step = reservationStepFor(data);
   setSession(chatId, { type: "reservation", step, data });
-  const prompt = nextReservationPrompt(data);
-  await bot.sendMessage(
-    chatId,
-    `${prompt}\n\n(Demo reservation — I'll confirm with you here. Type cancel to stop.)`
-  );
+  const prompt = nextReservationPrompt(data, lang);
+  const note =
+    lang === "es"
+      ? ES.resDemoNote
+      : "(Demo reservation — I'll confirm with you here. Type cancel to stop.)";
+  await bot.sendMessage(chatId, `${prompt}\n\n${note}`);
 }
 
 async function startOrderWizard(chatId) {
+  const lang = getChatLang(chatId) || "en";
   setSession(chatId, { type: "order", step: "name", data: {} });
   await bot.sendMessage(
     chatId,
-    `To-go order — name for the order?\n(Or order online: ${restaurant.orderOnlineUrl})\nType cancel to stop.`
+    lang === "es"
+      ? ES.orderStart(restaurant.orderOnlineUrl)
+      : `To-go order — name for the order?\n(Or order online: ${restaurant.orderOnlineUrl})\nType cancel to stop.`
   );
 }
 
@@ -754,9 +829,13 @@ async function handleReservationSession(msg) {
   const session = getSession(chatId);
   if (!session || session.type !== "reservation") return false;
   const text = msg.text.trim();
-  if (/^(cancel|stop|nevermind)$/i.test(text)) {
+  const lang = chatLanguage(chatId, text);
+  if (/^(cancel|stop|nevermind|cancelar|detener)$/i.test(text)) {
     setSession(chatId, null);
-    await bot.sendMessage(chatId, "Reservation request cancelled.");
+    await bot.sendMessage(
+      chatId,
+      lang === "es" ? ES.resCancel : "Reservation request cancelled."
+    );
     return true;
   }
   const { step, data } = session;
@@ -766,13 +845,18 @@ async function handleReservationSession(msg) {
     if (!parsed) {
       await bot.sendMessage(
         chatId,
-        "Please send adults and kids, like: 3 adults, 1 kid"
+        lang === "es"
+          ? ES.adultsKidsRetry
+          : "Please send adults and kids, like: 3 adults, 1 kid"
       );
       return true;
     }
     const total = parsed.adults + parsed.kids;
     if (total < 1) {
-      await bot.sendMessage(chatId, "Need at least 1 guest — try again?");
+      await bot.sendMessage(
+        chatId,
+        lang === "es" ? ES.needOneGuest : "Need at least 1 guest — try again?"
+      );
       return true;
     }
     if (data.partySize && total !== data.partySize) {
@@ -794,7 +878,7 @@ async function handleReservationSession(msg) {
     if (!seat) {
       await bot.sendMessage(
         chatId,
-        "Please choose one: booth, table, or patio"
+        lang === "es" ? ES.seatingRetry : "Please choose one: booth, table, or patio"
       );
       return true;
     }
@@ -802,7 +886,11 @@ async function handleReservationSession(msg) {
   } else if (step === "name") {
     data.name = text;
   } else {
-    await bot.sendMessage(chatId, nextReservationPrompt(data) || "One moment…");
+    await bot.sendMessage(
+      chatId,
+      nextReservationPrompt(data, lang) ||
+        (lang === "es" ? "Un momento…" : "One moment…")
+    );
     return true;
   }
 
@@ -812,7 +900,7 @@ async function handleReservationSession(msg) {
     return true;
   }
   setSession(chatId, { type: "reservation", step: next, data });
-  await bot.sendMessage(chatId, nextReservationPrompt(data));
+  await bot.sendMessage(chatId, nextReservationPrompt(data, lang));
   return true;
 }
 
@@ -821,28 +909,38 @@ async function handleOrderSession(msg) {
   const session = getSession(chatId);
   if (!session || session.type !== "order") return false;
   const text = msg.text.trim();
-  if (/^(cancel|stop|nevermind)$/i.test(text)) {
+  const lang = chatLanguage(chatId, text);
+  if (/^(cancel|stop|nevermind|cancelar|detener)$/i.test(text)) {
     setSession(chatId, null);
-    await bot.sendMessage(chatId, "To-go order cancelled.");
+    await bot.sendMessage(
+      chatId,
+      lang === "es" ? ES.orderCancel : "To-go order cancelled."
+    );
     return true;
   }
   const { step, data } = session;
   if (step === "name") {
     data.name = text;
     setSession(chatId, { type: "order", step: "phone", data });
-    await bot.sendMessage(chatId, "Phone?");
+    await bot.sendMessage(chatId, lang === "es" ? ES.orderPhone : "Phone?");
     return true;
   }
   if (step === "phone") {
     data.phone = text;
     setSession(chatId, { type: "order", step: "pickup", data });
-    await bot.sendMessage(chatId, "Pickup time? (30 min, 6:15pm, ASAP)");
+    await bot.sendMessage(
+      chatId,
+      lang === "es" ? ES.orderPickup : "Pickup time? (30 min, 6:15pm, ASAP)"
+    );
     return true;
   }
   if (step === "pickup") {
     data.pickupTime = text;
     setSession(chatId, { type: "order", step: "items", data });
-    await bot.sendMessage(chatId, "Items + quantities?");
+    await bot.sendMessage(
+      chatId,
+      lang === "es" ? ES.orderItems : "Items + quantities?"
+    );
     return true;
   }
   if (step === "items") {
@@ -851,15 +949,20 @@ async function handleOrderSession(msg) {
     if (hits.length) {
       await bot.sendMessage(
         chatId,
-        `Heads-up, may be 86'd: ${hits.map((h) => h.name).join(", ")}`
+        lang === "es"
+          ? `Aviso: puede estar 86'd: ${hits.map((h) => h.name).join(", ")}`
+          : `Heads-up, may be 86'd: ${hits.map((h) => h.name).join(", ")}`
       );
     }
     setSession(chatId, { type: "order", step: "notes", data });
-    await bot.sendMessage(chatId, 'Notes? Or type "none".');
+    await bot.sendMessage(
+      chatId,
+      lang === "es" ? ES.orderNotes : 'Notes? Or type "none".'
+    );
     return true;
   }
   if (step === "notes") {
-    data.notes = /^none$/i.test(text) ? "" : text;
+    data.notes = /^(none|ninguna|ninguno)$/i.test(text) ? "" : text;
     setSession(chatId, null);
     const order = saveOrder({
       id: newId("ord"),
@@ -887,8 +990,12 @@ async function handleOrderSession(msg) {
     await bot.sendMessage(
       chatId,
       sent
-        ? `To-go request sent under ${data.name}. Pickup: ${data.pickupTime}.`
-        : `Please call ${restaurant.phone} or use ${restaurant.orderOnlineUrl}`
+        ? lang === "es"
+          ? ES.orderSent(data.name, data.pickupTime)
+          : `To-go request sent under ${data.name}. Pickup: ${data.pickupTime}.`
+        : lang === "es"
+          ? `Por favor llama al ${restaurant.phone} o usa ${restaurant.orderOnlineUrl}`
+          : `Please call ${restaurant.phone} or use ${restaurant.orderOnlineUrl}`
     );
     return true;
   }
@@ -936,7 +1043,10 @@ bot.on("message", async (msg) => {
   if (!msg.text || msg.text.startsWith("/")) return;
   rememberManager(msg);
   const chatId = msg.chat.id;
-  console.log(`[TG] ${displayName(msg)}: ${msg.text}`);
+  msg.text = cleanGuestText(msg.text);
+  if (!msg.text) return;
+  const lang = chatLanguage(chatId, msg.text);
+  console.log(`[TG] ${displayName(msg)} [${lang}]: ${msg.text}`);
 
   try {
     // Manager inventory: "86 redfish" / "un86 redfish" / "86 list" (no slash needed)
@@ -946,21 +1056,31 @@ bot.on("message", async (msg) => {
     if (await handleOrderSession(msg)) return;
     if (await handleCancelChange(msg)) return;
 
+    // Greeting switches language instantly: "Hola" → Spanish, "Hi/Hey/Hello" → English
+    if (isPureGreeting(msg.text)) {
+      const welcome = generateReply(msg.text, { language: lang });
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: welcome });
+      console.log(`[TG] language switch → ${lang} (greeting)`);
+      await bot.sendMessage(chatId, welcome);
+      return;
+    }
+
     // Multi-part guest questions (party + booth + allergies, etc.) → AI with full history
     // Do NOT short-circuit to the FAQ welcome greeting.
     const partySizeHint = extractPartySize(msg.text);
     const multiPartAsk =
       (partySizeHint != null && partySizeHint > MAX_ONLINE_PARTY) ||
-      (/\b(and|,)\b/i.test(msg.text) &&
-        /\b(booth|gluten|allerg|patio|fryer|reserv|party|group of|table for)\b/i.test(
+      (/\b(and|,|y)\b/i.test(msg.text) &&
+        /\b(booth|gluten|allerg|patio|fryer|reserv|party|group of|table for|mesa|ni[nñ]os?)\b/i.test(
           msg.text
         )) ||
-      /\b(how big|max party|largest party|party size limit|how many people can|how large|big group|large group|large party)\b/i.test(
+      /\b(how big|max party|largest party|party size limit|how many people can|how large|big group|large group|large party|grupo grande|cu[aá]ntas personas)\b/i.test(
         msg.text
       );
 
     if (multiPartAsk) {
-      const aiMulti = await generateAiReply(chatId, msg.text);
+      const aiMulti = await generateAiReply(chatId, msg.text, { language: lang });
       if (aiMulti) {
         await bot.sendMessage(chatId, aiMulti.slice(0, 4000));
         if (partySizeHint != null && partySizeHint > MAX_ONLINE_PARTY) {
@@ -971,9 +1091,10 @@ bot.on("message", async (msg) => {
         return;
       }
       // Deterministic fallback (never the bare "hi/hey" welcome for real questions)
-      const fallback = generateReply(msg.text);
-      appendChatMessage(chatId, { role: "model", content: fallback });
-      await bot.sendMessage(chatId, fallback);
+      const fallback = generateReply(msg.text, { language: lang });
+      const localized = lang === "es" ? await translateToSpanish(fallback) : fallback;
+      appendChatMessage(chatId, { role: "model", content: localized });
+      await bot.sendMessage(chatId, localized);
       if (partySizeHint != null && partySizeHint > MAX_ONLINE_PARTY) {
         await notifyManagers(
           `📞 TRANSFER TO MANAGER — party of ${partySizeHint} (max ${MAX_ONLINE_PARTY})\nGuest: ${displayName(msg)} (chat ${chatId})\n"${msg.text}"`
@@ -998,8 +1119,8 @@ bot.on("message", async (msg) => {
     }
     if (SPECIALS_TRIGGERS.test(msg.text)) {
       const ans = await answerSpecialsQuestion(msg.text);
-      if (ans.kind === "text" && !/photo|picture|image|pic/i.test(msg.text)) {
-        await bot.sendMessage(chatId, ans.text.slice(0, 4000));
+      if (ans.kind === "text" && !/photo|picture|image|pic|foto\b/i.test(msg.text)) {
+        await sendGuest(chatId, ans.text, lang);
         return;
       }
       await sendSpecials(chatId, ans.text);
@@ -1009,7 +1130,7 @@ bot.on("message", async (msg) => {
     // Menu section lists (appetizers, tacos, sandwiches, entrees…)
     const menuList = answerMenuList(msg.text);
     if (menuList) {
-      await bot.sendMessage(chatId, menuList);
+      await sendGuest(chatId, menuList, lang);
       return;
     }
 
@@ -1017,28 +1138,34 @@ bot.on("message", async (msg) => {
     // Runs before FAQ so "allergic to shellfish" doesn't only return call-us copy.
     const menuGuide = answerMenuGuide(msg.text);
     if (menuGuide) {
-      await bot.sendMessage(chatId, menuGuide);
+      await sendGuest(chatId, menuGuide, lang);
       return;
     }
 
     // Availability / 86 demo (trout yes, broccoli sold out, etc.)
     const availability = answerAvailability(msg.text);
     if (availability) {
-      await bot.sendMessage(chatId, availability);
+      await sendGuest(chatId, availability, lang);
       return;
     }
 
     const hits = findSoldOutMatch(msg.text);
-    if (hits.length && /\b(have|got|serve|order|get|do y'?all|out of|sold out)\b/i.test(msg.text)) {
-      await bot.sendMessage(
-        chatId,
-        `We're sold out of ${hits.map((h) => h.name).join(", ")} for the day.\n(Demo 86 board — later this can sync from the restaurant count system.)\nMenu: ${restaurant.menuUrl}`
-      );
+    if (
+      hits.length &&
+      /\b(have|got|serve|order|get|do y'?all|out of|sold out|tienen|hay|agotad)/i.test(
+        msg.text
+      )
+    ) {
+      const soldMsg =
+        lang === "es"
+          ? ES.soldOut(hits.map((h) => h.name).join(", "), restaurant.menuUrl)
+          : `We're sold out of ${hits.map((h) => h.name).join(", ")} for the day.\n(Demo 86 board — later this can sync from the restaurant count system.)\nMenu: ${restaurant.menuUrl}`;
+      await bot.sendMessage(chatId, soldMsg);
       return;
     }
 
     // Conversational AI with FULL message history (not a single prompt)
-    const aiReply = await generateAiReply(chatId, msg.text);
+    const aiReply = await generateAiReply(chatId, msg.text, { language: lang });
     if (aiReply) {
       await bot.sendMessage(chatId, aiReply.slice(0, 4000));
       return;
@@ -1046,19 +1173,22 @@ bot.on("message", async (msg) => {
 
     // FAQ fallback if Gemini is unavailable.
     // generateAiReply already stored the user turn when it attempted AI.
-    let reply = generateReply(msg.text);
-    if (getSoldOut().items.length && /\bmenu\b/i.test(msg.text)) {
+    let reply = generateReply(msg.text, { language: lang });
+    if (getSoldOut().items.length && /\b(menu|men[uú])\b/i.test(msg.text)) {
       reply += `\n\nCurrently 86'd today: ${getSoldOut()
         .items.map((i) => i.name)
         .join(", ")}`;
     }
+    if (lang === "es") reply = await translateToSpanish(reply);
     appendChatMessage(chatId, { role: "model", content: reply });
     await bot.sendMessage(chatId, reply);
   } catch (err) {
     console.error("Failed to reply:", err);
     await bot.sendMessage(
       chatId,
-      `Sorry — something glitched. Call ${restaurant.phone}.`
+      lang === "es"
+        ? ES.glitch(restaurant.phone)
+        : `Sorry — something glitched. Call ${restaurant.phone}.`
     );
   }
 });

@@ -28,10 +28,11 @@ An **AI-powered guest agent** that answers FAQs, hours, location, and menu quest
 | Demo reservations (adults/kids, time, booth/table/patio; guest confirm, **no manager ping**) | Done |
 | To-go intake with manager approve/decline | Done |
 | Real-time 86 board (`86 redfish`, `un86 …`, `86 list`) | Done |
-| Side substitutions — “yes, we can change out any side items” | Done |
+| Side substitutions — yes, swap for other listed side items | Done |
 | Allergy & dietary answers + safety disclaimer | Done |
 | Large-party policy (max **12**; larger → transfer to manager) | Done |
 | Multi-part questions in one reply | Done |
+| Spanish / English auto-switch on greeting (`Hola` ↔ `Hi`) | Done |
 | Gemini chat with **full message history** | Done |
 | Express `POST /chat` API | Done |
 
@@ -141,7 +142,7 @@ Or full history:
 ## Policies (pilot)
 
 - **Max party size:** 12 online; larger → transfer to manager  
-- **Sides:** yes — change out any side items  
+- **Sides:** yes — change out any side item for our other listed side items  
 - **86:** managers type `86 <item>` in Telegram for real-time sold-out  
 - **Specials board:** snapshot at 11:00am lunch and 4:30pm dinner (Chicago)  
 - **Reservations (demo):** guest confirmation only; managers poll `/reservations`

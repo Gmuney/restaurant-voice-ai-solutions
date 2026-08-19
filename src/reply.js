@@ -158,10 +158,10 @@ function resolveAnswer(item) {
 function extractPartySize(text) {
   const m =
     String(text).match(
-      /\b(?:party of|table for|group of|party for|reservation for|reservations? for)\s*(\d{1,2})\b/i
+      /\b(?:party of|table for|group of|party for|reservation for|reservations? for|mesa para|reservaci[oó]n para)\s*(\d{1,2})\b/i
     ) ||
-    String(text).match(/\b(?:make a reservation|book(?:ing)?)\s+for\s+(\d{1,2})\b/i) ||
-    String(text).match(/\b(\d{1,2})\s*(?:people|guests|of us)\b/i);
+    String(text).match(/\b(?:make a reservation|book(?:ing)?|reservar)\s+for\s+(\d{1,2})\b/i) ||
+    String(text).match(/\b(\d{1,2})\s*(?:people|guests|of us|personas)\b/i);
   return m ? Number(m[1]) : null;
 }
 
@@ -172,7 +172,7 @@ function isSeatingPreference(text) {
 }
 
 function isSideSwap(text) {
-  return /\b(change|swap|switch|substitut|replace|different|another|switch out|change out|swap out).{0,40}\bsides?\b|\bsides?\b.{0,40}\b(change|swap|switch|substitut|replace|different|another)\b/i.test(
+  return /\b(change|changed|swap|swapped|switch|switched|substitut|replace|replaced|different|another|switch out|change out|swap out).{0,40}\bsides?\b|\bsides?\b.{0,40}\b(change|changed|swap|swapped|switch|switched|substitut|replace|replaced|different|another)\b/i.test(
     text
   );
 }
@@ -180,7 +180,7 @@ function isSideSwap(text) {
 function sideSwapAnswer() {
   return (
     restaurant.policies?.sideSubstitutions ||
-    "Yes — we can change out any side items. Just tell your server (or note it on your to-go order) which side you’d like instead."
+    "Yes — we can change out any side item for our other side items that we have listed. Tell your server (or note it on your to-go order) which listed side you’d like instead."
   );
 }
 
@@ -203,25 +203,52 @@ function managerFallbackAnswer(knownBits = []) {
 /**
  * Generate a guest-facing reply from the uploaded knowledge base.
  * Rules: multi-part answers, large-party routing, allergy disclaimer, manager fallback.
+ * Pass { language: "es" } for Spanish greetings / unsure fallbacks (FAQ answers may still be EN; caller can translate).
  */
-export function generateReply(rawMessage) {
+export function generateReply(rawMessage, opts = {}) {
+  const lang = opts.language === "es" ? "es" : "en";
   const text = String(rawMessage || "").trim();
   if (!text) {
-    return `Hey! You've reached ${restaurant.name}. Ask about hours, menu, specials, allergies, reservations, to-go, catering, and more. Text HELP for options.`;
+    return lang === "es"
+      ? `¡Hola! Has contactado a ${restaurant.name}. Pregunta por horarios, menú, especiales, alergias, reservaciones, para llevar, catering y más. Escribe AYUDA para opciones.`
+      : `Hey! You've reached ${restaurant.name}. Ask about hours, menu, specials, allergies, reservations, to-go, catering, and more. Text HELP for options.`;
   }
 
   const lower = text.toLowerCase();
 
   // Only pure greetings — NOT "hey we have a party of 10…"
   if (
-    /^(hi|hey|hello|yo|good (morning|afternoon|evening))([.!?]*)?$/i.test(
+    /^(hi|hey|hello|yo|good (morning|afternoon|evening)|hola|buenas|buenos d[ií]as|buenas tardes|buenas noches)([.!?]*)?$/i.test(
       lower
     )
   ) {
-    return `Hi! Thanks for texting ${restaurant.name}. I can help with hours, address, menu, specials, allergies, happy hour, reservations, to-go, catering & private events. What do you need?`;
+    return lang === "es"
+      ? `¡Hola! Gracias por escribir a ${restaurant.name}. Puedo ayudar con horarios, dirección, menú, especiales, alergias, happy hour, reservaciones, para llevar, catering y eventos privados. ¿En qué te ayudo?`
+      : `Hi! Thanks for texting ${restaurant.name}. I can help with hours, address, menu, specials, allergies, happy hour, reservations, to-go, catering & private events. What do you need?`;
   }
 
-  if (/^help\b/.test(lower) || lower.includes("what can you")) {
+  if (
+    /^help\b/.test(lower) ||
+    /^ayuda\b/.test(lower) ||
+    lower.includes("what can you") ||
+    lower.includes("qué puedes") ||
+    lower.includes("que puedes")
+  ) {
+    if (lang === "es") {
+      return [
+        `Asistente de ${restaurant.name}:`,
+        "• HORARIO / ABIERTO",
+        "• DIRECCIÓN / ESTACIONAMIENTO",
+        "• MENÚ / ESPECIALES",
+        "• ALERGIAS / GLUTEN / MARISCOS",
+        "• HAPPY HOUR / BEBIDAS",
+        "• RESERVACIÓN / CAMBIAR / CANCELAR",
+        "• PARA LLEVAR",
+        "• CATERING / EVENTO PRIVADO",
+        "• GRUPOS GRANDES",
+        "• HUMANO (llamar al restaurante)",
+      ].join("\n");
+    }
     return [
       `${restaurant.name} text helper:`,
       "• HOURS / OPEN",
@@ -247,7 +274,7 @@ export function generateReply(rawMessage) {
 
   const partySize = extractPartySize(text);
   const askingLargeParty =
-    /\b(how big|max party|largest party|party size limit|how many people can|how large|big group|large group|large party)\b/i.test(
+    /\b(how big|max party|largest party|party size limit|how many people can|how large|big group|large group|large party|grupo grande|cu[aá]ntas personas|mesa para (1[3-9]|[2-9]\d))\b/i.test(
       text
     ) ||
     (partySize != null && partySize > MAX_ONLINE_PARTY);
@@ -298,7 +325,9 @@ export function generateReply(rawMessage) {
     ]);
   }
 
-  return `Thanks for texting ${restaurant.name}! I'm not sure on that one yet. Try HOURS, MENU, SPECIALS, ALLERGIES, RESERVATION, TO-GO, or CATERING — or call us at ${restaurant.phone}.`;
+  return lang === "es"
+    ? `¡Gracias por escribir a ${restaurant.name}! Aún no estoy seguro de eso. Prueba HORARIO, MENÚ, ESPECIALES, ALERGIAS, RESERVACIÓN, PARA LLEVAR o CATERING — o llámanos al ${restaurant.phone}.`
+    : `Thanks for texting ${restaurant.name}! I'm not sure on that one yet. Try HOURS, MENU, SPECIALS, ALLERGIES, RESERVATION, TO-GO, or CATERING — or call us at ${restaurant.phone}.`;
 }
 
 export {
