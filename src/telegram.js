@@ -5,6 +5,9 @@ import {
   restaurant,
   extractPartySize,
   largePartyAnswer,
+  composeMultiPartReply,
+  happyHourAnswer,
+  asksHappyHour,
   MAX_ONLINE_PARTY,
 } from "./reply.js";
 import {
@@ -620,6 +623,31 @@ const ORDER_TRIGGERS =
 const SPECIALS_TRIGGERS =
   /\b(specials?|chalk\s*-?\s*boards?|daily special|specials photo|today'?s special|what'?s on (the )?board|especiales|especiales de hoy|pizarra)\b/i;
 
+function wantsChalkboardSpecials(text) {
+  const t = String(text || "");
+  if (asksHappyHour(t) && !/\b(chalk\s*-?\s*board|pizarra|daily special|especiales de hoy)\b/i.test(t)) {
+    return false;
+  }
+  return SPECIALS_TRIGGERS.test(t);
+}
+
+function isSideSwapLike(text) {
+  const t = String(text || "");
+  return (
+    /\b(change|swap|switch|substitut|replace).{0,40}\bsides?\b|\bsides?\b.{0,40}\b(change|swap|switch|substitut|replace)\b/i.test(
+      t
+    ) ||
+    (/\b(cambiar|cambiamos|cambien|cambio|sustituir)\b/i.test(t) &&
+      /\b(papas?|fries|ensalada|salad|sides?|guarnici)/i.test(t))
+  );
+}
+
+function asksGlutenLike(text) {
+  return /\b(gluten|celiac|cel[ií]aco|sin gluten|fryer|freidora|empanizado)\b/i.test(
+    text
+  );
+}
+
 function parseReservationHints(text) {
   const t = String(text || "");
   const partySize =
@@ -1066,20 +1094,34 @@ bot.on("message", async (msg) => {
       return;
     }
 
-    // Multi-part guest questions (party + booth + allergies, etc.) → AI with full history
-    // Do NOT short-circuit to the FAQ welcome greeting.
+    // Multi-part guest questions (party + sides + gluten/fryer, etc.)
+    // Prefer structured compose so Spanish answers don't hang on AI timeout.
     const partySizeHint = extractPartySize(msg.text);
     const multiPartAsk =
       (partySizeHint != null && partySizeHint > MAX_ONLINE_PARTY) ||
-      (/\b(and|,|y)\b/i.test(msg.text) &&
-        /\b(booth|gluten|allerg|patio|fryer|reserv|party|group of|table for|mesa|ni[nñ]os?)\b/i.test(
+      (/\b(and|,|y|también|tambien)\b/i.test(msg.text) &&
+        /\b(booth|gluten|allerg|patio|fryer|freidora|reserv|party|group of|table for|mesa|ni[nñ]os?|sides?|papas?|ensalada|cambiar)\b/i.test(
           msg.text
         )) ||
       /\b(how big|max party|largest party|party size limit|how many people can|how large|big group|large group|large party|grupo grande|cu[aá]ntas personas)\b/i.test(
         msg.text
-      );
+      ) ||
+      (isSideSwapLike(msg.text) &&
+        (asksGlutenLike(msg.text) || partySizeHint != null));
 
     if (multiPartAsk) {
+      const structured = composeMultiPartReply(msg.text, { language: lang });
+      if (structured) {
+        appendChatMessage(chatId, { role: "user", content: msg.text });
+        appendChatMessage(chatId, { role: "model", content: structured });
+        await bot.sendMessage(chatId, structured.slice(0, 4000));
+        if (partySizeHint != null && partySizeHint > MAX_ONLINE_PARTY) {
+          await notifyManagers(
+            `📞 TRANSFER TO MANAGER — party of ${partySizeHint} (max ${MAX_ONLINE_PARTY})\nGuest: ${displayName(msg)} (chat ${chatId})\n"${msg.text}"`
+          );
+        }
+        return;
+      }
       const aiMulti = await generateAiReply(chatId, msg.text, { language: lang });
       if (aiMulti) {
         await bot.sendMessage(chatId, aiMulti.slice(0, 4000));
@@ -1103,6 +1145,14 @@ bot.on("message", async (msg) => {
       return;
     }
 
+    if (asksHappyHour(msg.text)) {
+      const hh = happyHourAnswer(lang);
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: hh });
+      await bot.sendMessage(chatId, hh);
+      return;
+    }
+
     if (wantsToBookReservation(msg.text)) {
       const hints = parseReservationHints(msg.text);
       const size = hints.partySize ?? partySizeHint;
@@ -1117,7 +1167,7 @@ bot.on("message", async (msg) => {
       await startOrderWizard(chatId);
       return;
     }
-    if (SPECIALS_TRIGGERS.test(msg.text)) {
+    if (wantsChalkboardSpecials(msg.text)) {
       const ans = await answerSpecialsQuestion(msg.text);
       if (ans.kind === "text" && !/photo|picture|image|pic|foto\b/i.test(msg.text)) {
         await sendGuest(chatId, ans.text, lang);

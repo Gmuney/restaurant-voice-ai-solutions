@@ -1,0 +1,19 @@
+{
+  "source": "Fish City Grill — Culebra website Happy Hour tab (not chalkboard specials)",
+  "sourceUrl": "https://www.fishcitygrill.com/locations/culebra",
+  "note": "Happy Hour menu is separate from the daily chalkboard specials board.",
+  "days": "Sunday–Friday",
+  "hours": "3pm–6pm",
+  "summary": "A curated selection of spirits, fine wines, and artisanal small plates.",
+  "drinks": [
+    { "name": "Gold Margarita", "price": "$5" },
+    { "name": "Fish City Old Fashioned", "price": "$9", "blurb": "Classic Fish City Old Fashioned" },
+    { "name": "Wine By-the-Glass", "price": "Half Off", "blurb": "Select wines by the glass" },
+    { "name": "Draft Beer", "price": "$5" }
+  ],
+  "food": [
+    { "name": "Mystic Mermaid & Select Oysters", "price": "$2" },
+    { "name": "Crispy Calamari", "price": "$11" },
+    { "name": "Double Bacon Cheeseburger", "price": "$10" }
+  ]
+}

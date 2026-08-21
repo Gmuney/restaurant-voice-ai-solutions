@@ -148,8 +148,7 @@ export const ES = {
     `Perdón — hubo un fallo. Llama al ${phone}.`,
   soldOut: (names, menuUrl) =>
     `Se nos agotó: ${names} por hoy.\n(Tablero 86 demo — después puede sincronizar con el inventario del restaurante.)\nMenú: ${menuUrl}`,
-  greeting: (name) =>
-    `¡Hola! Gracias por escribir a ${name}. Puedo ayudar con horarios, dirección, menú, especiales, alergias, happy hour, reservaciones, para llevar, catering y eventos privados. ¿En qué te ayudo?`,
+  greeting: (name) => `¡Hola! ¿En qué puedo ayudarte hoy?`,
   help: (name) =>
     [
       `Asistente de ${name}:`,

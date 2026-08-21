@@ -26,9 +26,9 @@
   "happyHour": {
     "days": "Sunday–Friday",
     "hours": "3pm–6pm",
-    "notes": "Select drinks and small plates. Ask your server for today's happy hour board."
+    "notes": "Happy Hour menu is separate from chalkboard specials. See knowledge/happy-hour.json for current HH drinks & small plates."
   },
-  "parking": "Public lot parking is available at the shopping center.",
+  "parking": "We have plenty of parking in front of our store.",
   "neighborhood": "Far West Side / Culebra corridor, San Antonio",
   "cuisine": "Gulf Coast seafood, American, oyster bar",
   "dressCode": "Casual — come as you are.",
@@ -53,8 +53,12 @@
   "policies": {
     "maxOnlinePartySize": 12,
     "allergyDisclaimer": "Please notify your server of severe allergies upon arrival so our kitchen can take extra precautions against cross-contamination.",
+    "allergyDisclaimerEs": "Por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada.",
     "managerOption": "please call (210) 455-3474 and ask for a manager, or ask for a manager when you arrive.",
-    "sideSubstitutions": "Yes — we can change out any side item for our other side items that we have listed. Tell your server (or note it on your to-go order) which listed side you’d like instead."
+    "sideSubstitutions": "Yes — we can change out any side item for our other side items that we have listed. Tell your server (or note it on your to-go order) which listed side you’d like instead.",
+    "sideSubstitutionsEs": "Sí — podemos cambiar cualquier guarnición (side) por otras guarniciones que tengamos listadas. Dile a tu mesero (o anótalo en tu orden para llevar) cuál de las sides listadas prefieres en su lugar.",
+    "glutenFryer": "We offer a gluten-free menu (see https://www.fishcitygrill.com/locations/culebra). We cannot promise a separate fryer from breaded chicken or other fried items — shared oil / cross-contact can happen. Please tell your server about celiac/gluten needs when you order, or call (210) 455-3474 so a manager can guide you.",
+    "glutenFryerEs": "Tenemos menú sin gluten (ver https://www.fishcitygrill.com/locations/culebra). No podemos garantizar una freidora separada del pollo empanizado u otros fritos — puede haber aceite compartido / contaminación cruzada. Avisa a tu mesero de celiaquía/gluten al ordenar, o llama al (210) 455-3474 para que un manager te oriente."
   },
   "reservations": {
     "summary": "Yes — we take reservations (including via OpenTable). You can request one in this chat, book online, or call (210) 455-3474.",

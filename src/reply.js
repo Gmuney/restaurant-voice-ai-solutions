@@ -9,6 +9,9 @@ const restaurant = JSON.parse(
 const faq = JSON.parse(
   readFileSync(join(__dirname, "../knowledge/faq.json"), "utf8")
 );
+const happyHour = JSON.parse(
+  readFileSync(join(__dirname, "../knowledge/happy-hour.json"), "utf8")
+);
 
 const MAX_ONLINE_PARTY =
   restaurant.policies?.maxOnlinePartySize ??
@@ -150,15 +153,79 @@ function withAllergyDisclaimer(text, item) {
 function resolveAnswer(item) {
   let answer;
   if (item.type === "hours") answer = hoursAnswer();
+  else if (item.type === "happy-hour" || item.id === "happy-hour" || item.id === "hh-food")
+    answer = happyHourAnswer();
   else if (item.id === "party-size-max") answer = largePartyAnswer();
+  else if (item.id === "parking" || item.id === "parking-fee")
+    answer = parkingAnswer();
   else answer = item.answer || restaurant.callUs;
   return withAllergyDisclaimer(answer, item);
+}
+
+function parkingAnswer(lang = "en") {
+  if (lang === "es") {
+    return "Tenemos bastante estacionamiento frente a nuestro local.";
+  }
+  return (
+    restaurant.parking ||
+    "We have plenty of parking in front of our store."
+  );
+}
+
+/** Happy Hour menu (NOT chalkboard specials). */
+function happyHourAnswer(lang = "en") {
+  const days = happyHour.days || restaurant.happyHour?.days || "Sunday–Friday";
+  const hours = happyHour.hours || restaurant.happyHour?.hours || "3pm–6pm";
+  const drinks = (happyHour.drinks || [])
+    .map((d) => `• ${d.name}${d.price ? ` — ${d.price}` : ""}`)
+    .join("\n");
+  const food = (happyHour.food || [])
+    .map((d) => `• ${d.name}${d.price ? ` — ${d.price}` : ""}`)
+    .join("\n");
+
+  if (lang === "es") {
+    return [
+      `Happy Hour: ${days}, ${hours}.`,
+      "(Esto es el menú de Happy Hour — diferente de los especiales del pizarrón.)",
+      "",
+      "Bebidas:",
+      drinks || "• Pregunta a tu mesero por la lista de hoy",
+      "",
+      "Comida / small plates:",
+      food || "• Pregunta a tu mesero por la lista de hoy",
+      "",
+      `Más info: ${happyHour.sourceUrl || restaurant.website}`,
+    ].join("\n");
+  }
+
+  return [
+    `Happy Hour: ${days}, ${hours}.`,
+    "(This is the Happy Hour menu — separate from chalkboard specials.)",
+    "",
+    "Drinks:",
+    drinks || "• Ask your server for today’s HH list",
+    "",
+    "Food / small plates:",
+    food || "• Ask your server for today’s HH list",
+    "",
+    `More: ${happyHour.sourceUrl || restaurant.website}`,
+  ].join("\n");
+}
+
+function asksHappyHour(text) {
+  return /\b(happy\s*hour|hh\b|drink specials?|half off wine)\b/i.test(text);
+}
+
+function asksParking(text) {
+  return /\b(parking|park nearby|estacionamiento|where (do|can) i park)\b/i.test(
+    text
+  );
 }
 
 function extractPartySize(text) {
   const m =
     String(text).match(
-      /\b(?:party of|table for|group of|party for|reservation for|reservations? for|mesa para|reservaci[oó]n para)\s*(\d{1,2})\b/i
+      /\b(?:party of|table for|group of|grupo de|party for|reservation for|reservations? for|mesa para|reservaci[oó]n para)\s*(\d{1,2})\b/i
     ) ||
     String(text).match(/\b(?:make a reservation|book(?:ing)?|reservar)\s+for\s+(\d{1,2})\b/i) ||
     String(text).match(/\b(\d{1,2})\s*(?:people|guests|of us|personas)\b/i);
@@ -166,22 +233,152 @@ function extractPartySize(text) {
 }
 
 function isSeatingPreference(text) {
-  return /\b(booth|window seat|bar seat|specific (table|booth|seat)|quiet (corner|table|spot)|near the (tv|bar|kitchen|window)|prefer to sit|seating preference|high top|high-top)\b/i.test(
+  return /\b(booth|window seat|bar seat|specific (table|booth|seat)|quiet (corner|table|spot)|near the (tv|bar|kitchen|window)|prefer to sit|seating preference|high top|high-top|cabina)\b/i.test(
     text
   );
 }
 
 function isSideSwap(text) {
-  return /\b(change|changed|swap|swapped|switch|switched|substitut|replace|replaced|different|another|switch out|change out|swap out).{0,40}\bsides?\b|\bsides?\b.{0,40}\b(change|changed|swap|swapped|switch|switched|substitut|replace|replaced|different|another)\b/i.test(
-    text
-  );
+  const t = String(text || "");
+  if (
+    /\b(change|changed|swap|swapped|switch|switched|substitut|replace|replaced|different|another|switch out|change out|swap out).{0,40}\bsides?\b|\bsides?\b.{0,40}\b(change|changed|swap|swapped|switch|switched|substitut|replace|replaced|different|another)\b/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(cambiar|cambiamos|cambien|cambio|sustituir|substituir|reemplazar)\b/i.test(t) &&
+    /\b(papas?|papa|fries|potato|potatoes|ensalada|salad|sides?|guarnici[oó]n|guarniciones|pure|pur[eé]|arroz|frijoles|spinach|espinaca|broccoli|br[oó]coli|mac)\b/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(papas?|fries|potato|potatoes).{0,40}\b(por|for|con)\s+(ensalada|salad|vegetable|verdura)/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  return false;
 }
 
-function sideSwapAnswer() {
+function sideSwapAnswer(lang = "en") {
+  if (lang === "es") {
+    return (
+      restaurant.policies?.sideSubstitutionsEs ||
+      "Sí — podemos cambiar cualquier guarnición (side) por otras guarniciones que tengamos listadas. Dile a tu mesero cuál prefieres."
+    );
+  }
   return (
     restaurant.policies?.sideSubstitutions ||
     "Yes — we can change out any side item for our other side items that we have listed. Tell your server (or note it on your to-go order) which listed side you’d like instead."
   );
+}
+
+function asksGluten(text) {
+  return /\b(gluten|celiac|cel[ií]aco|sin gluten)\b/i.test(text);
+}
+
+function asksFryerCrossContact(text) {
+  return /\b(fryer|freidora|same oil|shared oil|aceite|cross[- ]?contam|contaminaci[oó]n|empanizado|breaded chicken|pollo empanizado|same fryer|misma freidora)\b/i.test(
+    text
+  );
+}
+
+function glutenFryerAnswer(lang = "en") {
+  if (lang === "es") {
+    return (
+      restaurant.policies?.glutenFryerEs ||
+      "Tenemos menú sin gluten. Para freidora / contaminación cruzada, avisa a tu mesero o llama a un manager."
+    );
+  }
+  return (
+    restaurant.policies?.glutenFryer ||
+    "We offer a gluten-free menu. For fryer / cross-contact questions, tell your server or call a manager."
+  );
+}
+
+function allergyDisclaimer(lang = "en") {
+  if (lang === "es") {
+    return (
+      restaurant.policies?.allergyDisclaimerEs ||
+      "Por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada."
+    );
+  }
+  return ALLERGY_DISCLAIMER;
+}
+
+function partyBookingAnswer(partySize, text, lang = "en") {
+  const tonight = /\b(tonight|esta noche|esta\s+noche|hoy en la noche)\b/i.test(text);
+  if (partySize != null && partySize > MAX_ONLINE_PARTY) {
+    return largePartyAnswer(partySize);
+  }
+  if (partySize != null && partySize >= 1) {
+    if (lang === "es") {
+      return tonight
+        ? `Un grupo de ${partySize} está bien para reservar aquí (máximo ${MAX_ONLINE_PARTY}). Para esta noche, escribe “quiero una reservación” y te tomo adultos/niños, hora, y booth / mesa / patio.`
+        : `Un grupo de ${partySize} está bien para reservar aquí (máximo ${MAX_ONLINE_PARTY}). Escribe “quiero una reservación” y te ayudo a completar los detalles.`;
+    }
+    return tonight
+      ? `A party of ${partySize} works for booking here (max ${MAX_ONLINE_PARTY}). For tonight, say “I want a reservation” and I’ll take adults/kids, time, and booth / table / patio.`
+      : `A party of ${partySize} works for booking here (max ${MAX_ONLINE_PARTY}). Say “I want a reservation” and I’ll help finish the details.`;
+  }
+  return null;
+}
+
+/**
+ * Compose a reliable multi-part answer (party + sides + gluten/fryer + HH + parking)
+ * in English or Spanish without waiting on AI.
+ */
+function composeMultiPartReply(rawMessage, opts = {}) {
+  const lang = opts.language === "es" ? "es" : "en";
+  const text = String(rawMessage || "").trim();
+  if (!text) return null;
+
+  const parts = [];
+  const partySize = extractPartySize(text);
+  const partyBit = partyBookingAnswer(partySize, text, lang);
+  if (partyBit) parts.push(partyBit);
+
+  if (isSideSwap(text)) parts.push(sideSwapAnswer(lang));
+  if (asksHappyHour(text)) parts.push(happyHourAnswer(lang));
+  if (asksParking(text)) parts.push(parkingAnswer(lang));
+
+  if (asksGluten(text) || asksFryerCrossContact(text)) {
+    parts.push(glutenFryerAnswer(lang));
+    parts.push(allergyDisclaimer(lang));
+  }
+
+  const lower = text.toLowerCase();
+  const skip = new Set([
+    "side-swap",
+    "gluten",
+    "party-size-max",
+    "party-of-6",
+    "happy-hour",
+    "hh-food",
+    "parking",
+    "parking-fee",
+  ]);
+  const extra = findAllFaq(lower).filter((i) => {
+    if (skip.has(i.id)) return false;
+    if (asksHappyHour(text) && (i.type === "hours" || i.id === "hours" || i.id === "open-now")) {
+      return false;
+    }
+    return true;
+  });
+  for (const hit of extra.slice(0, 2)) {
+    const ans = resolveAnswer(hit);
+    if (ans && !parts.some((p) => p.includes(ans.slice(0, 40)))) {
+      parts.push(ans);
+    }
+  }
+
+  if (!parts.length) return null;
+  return parts.join("\n\n");
 }
 
 function isCustomKitchenMod(text) {
@@ -223,8 +420,8 @@ export function generateReply(rawMessage, opts = {}) {
     )
   ) {
     return lang === "es"
-      ? `¡Hola! Gracias por escribir a ${restaurant.name}. Puedo ayudar con horarios, dirección, menú, especiales, alergias, happy hour, reservaciones, para llevar, catering y eventos privados. ¿En qué te ayudo?`
-      : `Hi! Thanks for texting ${restaurant.name}. I can help with hours, address, menu, specials, allergies, happy hour, reservations, to-go, catering & private events. What do you need?`;
+      ? `¡Hola! ¿En qué puedo ayudarte hoy?`
+      : `Hello! How can I help you today?`;
   }
 
   if (
@@ -266,7 +463,7 @@ export function generateReply(rawMessage, opts = {}) {
 
   if (isSideSwap(text)) {
     const otherHits = findAllFaq(lower).filter((i) => i.id !== "side-swap");
-    const parts = [sideSwapAnswer()];
+    const parts = [sideSwapAnswer(lang)];
     for (const hit of otherHits) parts.push(resolveAnswer(hit));
     if (isSeatingPreference(text)) parts.push(MANAGER_OPTION);
     return parts.join("\n\n");
@@ -338,6 +535,10 @@ export {
   isOpenNow,
   extractPartySize,
   largePartyAnswer,
+  composeMultiPartReply,
+  happyHourAnswer,
+  parkingAnswer,
+  asksHappyHour,
   MAX_ONLINE_PARTY,
   ALLERGY_DISCLAIMER,
   MANAGER_OPTION,
