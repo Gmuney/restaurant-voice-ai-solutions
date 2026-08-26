@@ -12,6 +12,9 @@ const faq = JSON.parse(
 const happyHour = JSON.parse(
   readFileSync(join(__dirname, "../knowledge/happy-hour.json"), "utf8")
 );
+const pastSpecials = JSON.parse(
+  readFileSync(join(__dirname, "../knowledge/past-specials.json"), "utf8")
+);
 
 const MAX_ONLINE_PARTY =
   restaurant.policies?.maxOnlinePartySize ??
@@ -22,9 +25,20 @@ const ALLERGY_DISCLAIMER =
   restaurant.policies?.allergyDisclaimer ||
   "Please notify your server of severe allergies upon arrival so our kitchen can take extra precautions against cross-contamination.";
 
+const ALLERGY_DISCLAIMER_ES =
+  restaurant.policies?.allergyDisclaimerEs ||
+  "Por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada.";
+
 const MANAGER_OPTION =
   restaurant.policies?.managerOption ||
   `If you need something custom, ask for a manager when you call or arrive — or call ${restaurant.phone}.`;
+
+/** Online booking allowed for parties of 1..MAX; parties of (MAX+1)+ must call management. */
+const LARGE_PARTY_MIN = MAX_ONLINE_PARTY + 1; // 8 when max online is 7
+
+function isLargeOnlineParty(partySize) {
+  return partySize != null && Number(partySize) >= LARGE_PARTY_MIN;
+}
 
 const ALLERGY_FAQ_IDS = new Set([
   "allergies",
@@ -75,14 +89,104 @@ function hoursAnswer() {
   return `${openLine} Hours: ${restaurant.hours.display} Phone: ${restaurant.phone}`;
 }
 
-function largePartyAnswer(partySize = null) {
-  const base =
-    restaurant.reservations?.largePartyAnswer ||
-    `Our maximum party size for booking here is ${MAX_ONLINE_PARTY}. For parties larger than ${MAX_ONLINE_PARTY}, I’ll transfer you to a manager — please call ${restaurant.phone} and ask for a manager.`;
-  if (partySize && partySize > MAX_ONLINE_PARTY) {
-    return `A party of ${partySize} is over our maximum booking size of ${MAX_ONLINE_PARTY}. I’ll transfer you to a manager — please call ${restaurant.phone} and ask for a manager, and I’ll also flag a manager here to follow up.`;
+function largePartyAnswer(partySize = null, lang = "en") {
+  return managerEscalationLine(lang);
+}
+
+function managerEscalationLine(lang = "en") {
+  // Guest-facing only — never include phones, alert banners, or internal log text
+  if (lang === "es") {
+    return (
+      restaurant.reservations?.managerEscalationEs ||
+      "Para reservaciones de grupo de este tamaño (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager."
+    );
   }
-  return base;
+  return (
+    restaurant.reservations?.managerEscalation ||
+    "For group reservations of this size (or to speak with management), I am alerting our team right now. Please stay on the line while I connect you to a manager."
+  );
+}
+
+function asksManagerEscalation(text) {
+  const t = String(text || "");
+  return (
+    /\b(speak (to|with)|talk to|ask for|get me|need|want|can i (speak|talk)|quisiera hablar|quiero hablar|hablar con|puedo hablar).{0,30}\b(manager|owner|gerente|due[nñ]o|dueña|management)\b/i.test(
+      t
+    ) ||
+    /\b(manager|owner|gerente|due[nñ]o|dueña)\s+(please|por favor|now|ahora)\b/i.test(
+      t
+    ) ||
+    /\b(manager please|owner please|ask (for )?a manager|get (a |the )?manager|real person|talk to (a )?human|humano|una persona)\b/i.test(
+      t
+    ) ||
+    /\b(manager|owner|gerente)\b.{0,20}\b(please|por favor|now|ahora)\b/i.test(t)
+  );
+}
+
+function needsManagerEscalation(text) {
+  return isLargeOnlineParty(extractPartySize(text)) || asksManagerEscalation(text);
+}
+
+function hasAllergyDisclaimer(text) {
+  const t = String(text || "");
+  if (!t) return false;
+  if (t.includes(ALLERGY_DISCLAIMER) || t.includes(ALLERGY_DISCLAIMER_ES)) {
+    return true;
+  }
+  return (
+    /notify your server of severe allergies/i.test(t) ||
+    /avise a su mesero de alergias graves/i.test(t)
+  );
+}
+
+/**
+ * Keep allergy/fryer safety language once, woven into menu copy —
+ * never leave a second standalone disclaimer block at the end.
+ */
+function ensureSingleAllergyDisclaimer(text, lang = "en") {
+  let body = String(text || "").trim();
+  if (!body) return body;
+  const both = [ALLERGY_DISCLAIMER, ALLERGY_DISCLAIMER_ES].filter(Boolean);
+
+  for (const d of both) {
+    let first = body.indexOf(d);
+    while (first !== -1) {
+      const second = body.indexOf(d, first + d.length);
+      if (second === -1) break;
+      body = (body.slice(0, second) + body.slice(second + d.length))
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      first = body.indexOf(d);
+    }
+  }
+  if (body.includes(ALLERGY_DISCLAIMER) && body.includes(ALLERGY_DISCLAIMER_ES)) {
+    const drop = lang === "es" ? ALLERGY_DISCLAIMER : ALLERGY_DISCLAIMER_ES;
+    body = body.replace(drop, "").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  // Strip a trailing standalone disclaimer paragraph (already said in menu section)
+  const disc = lang === "es" ? ALLERGY_DISCLAIMER_ES : ALLERGY_DISCLAIMER;
+  const trailing = new RegExp(
+    `(?:\\n\\n)+${disc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`
+  );
+  const withoutTrailing = body.replace(trailing, "").trim();
+  if (withoutTrailing !== body && hasAllergyDisclaimer(withoutTrailing)) {
+    body = withoutTrailing;
+  }
+  return body;
+}
+
+/** Weave disclaimer into menu/allergy copy once — not a new trailing block. */
+function withAllergyDisclaimer(text, item, lang = "en") {
+  if (!item || !ALLERGY_FAQ_IDS.has(item.id)) return text;
+  let body = String(text || "").trim();
+  if (hasAllergyDisclaimer(body)) {
+    return ensureSingleAllergyDisclaimer(body, lang);
+  }
+  const disc = lang === "es" ? ALLERGY_DISCLAIMER_ES : ALLERGY_DISCLAIMER;
+  // Same section / same paragraph flow — no standalone footer block
+  body = `${body.replace(/\s+$/, "")} ${disc}`;
+  return ensureSingleAllergyDisclaimer(body, lang);
 }
 
 /** Score FAQ hits — longer phrase matches win. */
@@ -144,22 +248,20 @@ function findAllFaq(lower) {
   return kept.map((h) => h.item);
 }
 
-function withAllergyDisclaimer(text, item) {
-  if (!item || !ALLERGY_FAQ_IDS.has(item.id)) return text;
-  if (text.includes(ALLERGY_DISCLAIMER)) return text;
-  return `${text}\n\n${ALLERGY_DISCLAIMER}`;
-}
-
-function resolveAnswer(item) {
+function resolveAnswer(item, lang = "en") {
   let answer;
   if (item.type === "hours") answer = hoursAnswer();
   else if (item.type === "happy-hour" || item.id === "happy-hour" || item.id === "hh-food")
-    answer = happyHourAnswer();
-  else if (item.id === "party-size-max") answer = largePartyAnswer();
+    answer = happyHourAnswer(lang);
+  else if (
+    item.type === "large-party" ||
+    item.id === "party-size-max"
+  )
+    answer = largePartyAnswer(null, lang);
   else if (item.id === "parking" || item.id === "parking-fee")
-    answer = parkingAnswer();
+    answer = parkingAnswer(lang);
   else answer = item.answer || restaurant.callUs;
-  return withAllergyDisclaimer(answer, item);
+  return withAllergyDisclaimer(answer, item, lang);
 }
 
 function parkingAnswer(lang = "en") {
@@ -302,31 +404,85 @@ function glutenFryerAnswer(lang = "en") {
 }
 
 function allergyDisclaimer(lang = "en") {
-  if (lang === "es") {
-    return (
-      restaurant.policies?.allergyDisclaimerEs ||
-      "Por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada."
-    );
-  }
-  return ALLERGY_DISCLAIMER;
+  return lang === "es" ? ALLERGY_DISCLAIMER_ES : ALLERGY_DISCLAIMER;
 }
 
 function partyBookingAnswer(partySize, text, lang = "en") {
   const tonight = /\b(tonight|esta noche|esta\s+noche|hoy en la noche)\b/i.test(text);
-  if (partySize != null && partySize > MAX_ONLINE_PARTY) {
-    return largePartyAnswer(partySize);
+  if (isLargeOnlineParty(partySize)) {
+    return largePartyAnswer(partySize, lang);
   }
   if (partySize != null && partySize >= 1) {
     if (lang === "es") {
       return tonight
-        ? `Un grupo de ${partySize} está bien para reservar aquí (máximo ${MAX_ONLINE_PARTY}). Para esta noche, escribe “quiero una reservación” y te tomo adultos/niños, hora, y booth / mesa / patio.`
-        : `Un grupo de ${partySize} está bien para reservar aquí (máximo ${MAX_ONLINE_PARTY}). Escribe “quiero una reservación” y te ayudo a completar los detalles.`;
+        ? `Un grupo de ${partySize} está bien para reservar aquí (máximo ${MAX_ONLINE_PARTY} en línea). Para esta noche, escribe “quiero una reservación” y te tomo adultos/niños, hora, y booth / mesa / patio.`
+        : `Un grupo de ${partySize} está bien para reservar aquí (máximo ${MAX_ONLINE_PARTY} en línea). Escribe “quiero una reservación” y te ayudo a completar los detalles.`;
     }
     return tonight
-      ? `A party of ${partySize} works for booking here (max ${MAX_ONLINE_PARTY}). For tonight, say “I want a reservation” and I’ll take adults/kids, time, and booth / table / patio.`
-      : `A party of ${partySize} works for booking here (max ${MAX_ONLINE_PARTY}). Say “I want a reservation” and I’ll help finish the details.`;
+      ? `A party of ${partySize} works for booking here (online max ${MAX_ONLINE_PARTY}). For tonight, say “I want a reservation” and I’ll take adults/kids, time, and booth / table / patio.`
+      : `A party of ${partySize} works for booking here (online max ${MAX_ONLINE_PARTY}). Say “I want a reservation” and I’ll help finish the details.`;
   }
   return null;
+}
+
+/**
+ * Dual-action escalation reply (GUEST chat only):
+ * 1) Answer safe standard bits (hours, patio, sides, parking, HH)
+ * 2) Smooth handoff line — no phones, no call-the-store, no internal alert text
+ */
+function composeEscalationReply(rawMessage, opts = {}) {
+  const lang = opts.language === "es" ? "es" : "en";
+  const text = String(rawMessage || "").trim();
+  const parts = [];
+
+  if (
+    /\b(hours?|open|closed|horario|horarios|abiertos?|cerrados?)\b/i.test(text)
+  ) {
+    // Hours for guests on an active handoff — no phone (they're already on the line)
+    const status = isOpenNow();
+    const openLine = status.open
+      ? lang === "es"
+        ? `Estamos ABIERTOS ahora (${status.day}).`
+        : `We're OPEN now (${status.day}).`
+      : lang === "es"
+        ? `Estamos CERRADOS ahora (${status.day}).`
+        : `We're CLOSED right now (${status.day}).`;
+    parts.push(
+      `${openLine} ${lang === "es" ? "Horario" : "Hours"}: ${restaurant.hours.display}`
+    );
+  }
+  if (asksParking(text)) parts.push(parkingAnswer(lang));
+  if (asksHappyHour(text)) parts.push(happyHourAnswer(lang));
+  if (isSideSwap(text)) parts.push(sideSwapAnswer(lang));
+  if (/\b(patio|outdoor|outside seating|terraza)\b/i.test(text)) {
+    parts.push(
+      lang === "es"
+        ? "Sí — podemos anotar preferencia de patio / terraza; la disponibilidad cambia con el clima y la demanda."
+        : "Yes — we can note a patio preference; availability can change with weather and demand."
+    );
+  }
+
+  parts.push(managerEscalationLine(lang));
+  return sanitizeGuestEscalationReply(
+    ensureSingleAllergyDisclaimer(parts.filter(Boolean).join("\n\n"), lang)
+  );
+}
+
+/** Strip internal alert banners / store call prompts from guest-facing escalation text. */
+function sanitizeGuestEscalationReply(text) {
+  let body = String(text || "");
+  body = body.replace(/^.*MANAGER ALERT.*$/gim, "");
+  body = body.replace(/🚨/g, "");
+  // Do not instruct the guest to call while already on the line
+  body = body.replace(
+    /\s*(Please call us directly at[^.\n]*\.?|Por favor llámanos directamente al[^.\n]*\.?|call us directly at\s*\(?\d[\d\s.()-]{7,}\)?[^.]*\.?)/gi,
+    ""
+  );
+  body = body.replace(/\bPhone:\s*\(?\d[\d\s.()-]{7,}\)?/gi, "");
+  body = body.replace(/\bTel[eé]fono:\s*\(?\d[\d\s.()-]{7,}\)?/gi, "");
+  body = body.replace(/\(210\)\s*455-3474/g, "");
+  body = body.replace(/\n{3,}/g, "\n\n").trim();
+  return body;
 }
 
 /**
@@ -348,8 +504,8 @@ function composeMultiPartReply(rawMessage, opts = {}) {
   if (asksParking(text)) parts.push(parkingAnswer(lang));
 
   if (asksGluten(text) || asksFryerCrossContact(text)) {
+    // glutenFryerAnswer already weaves shared-fryer + allergy safety once in the menu section
     parts.push(glutenFryerAnswer(lang));
-    parts.push(allergyDisclaimer(lang));
   }
 
   const lower = text.toLowerCase();
@@ -365,27 +521,138 @@ function composeMultiPartReply(rawMessage, opts = {}) {
   ]);
   const extra = findAllFaq(lower).filter((i) => {
     if (skip.has(i.id)) return false;
+    // Avoid a second allergy/gluten FAQ block when menu section already covered it
+    if (
+      (asksGluten(text) || asksFryerCrossContact(text)) &&
+      ALLERGY_FAQ_IDS.has(i.id)
+    ) {
+      return false;
+    }
     if (asksHappyHour(text) && (i.type === "hours" || i.id === "hours" || i.id === "open-now")) {
       return false;
     }
     return true;
   });
   for (const hit of extra.slice(0, 2)) {
-    const ans = resolveAnswer(hit);
+    const ans = resolveAnswer(hit, lang);
     if (ans && !parts.some((p) => p.includes(ans.slice(0, 40)))) {
       parts.push(ans);
     }
   }
 
   if (!parts.length) return null;
-  return parts.join("\n\n");
+  // Never add a standalone disclaimer footer — safety lives in the menu section only
+  return ensureSingleAllergyDisclaimer(parts.join("\n\n"), lang);
 }
 
 function isCustomKitchenMod(text) {
   if (isSideSwap(text)) return false;
-  return /\b(substitut|modify|modification|custom (order|request)|special request|leave off|hold the|no onions?|extra crispy|make it without|can you (make|do|prepare))\b/i.test(
+  return /\b(substitut|modify|modification|custom (order|request)|special request|leave off|hold the|no onions?|extra crispy|make it without|can you (make|do|prepare)|blacken|topped with|pontchartrain)\b/i.test(
     text
   );
+}
+
+function asksPastSpecial(text) {
+  const t = String(text || "");
+  if (
+    /\b(past|previous|last week'?s?|other day|other night|that|old)\b.{0,40}\bspecials?\b|\bspecials?\b.{0,40}\b(past|previous|last week|other day|other night)\b/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  if (/\bpontchartrain\b/i.test(t)) return true;
+  for (const item of pastSpecials.items || []) {
+    for (const m of item.match || []) {
+      if (m && t.toLowerCase().includes(String(m).toLowerCase())) return true;
+    }
+  }
+  return false;
+}
+
+function findPastSpecialMatch(text) {
+  const lower = String(text || "").toLowerCase();
+  for (const item of pastSpecials.items || []) {
+    for (const m of item.match || []) {
+      if (m && lower.includes(String(m).toLowerCase())) return item;
+    }
+  }
+  return null;
+}
+
+/**
+ * Past chalkboard specials — host matchmaking tone:
+ * welcome that specials rotate → immediate concrete build (never ask for flavors)
+ * → one smooth side-swap line. Keep to 3–4 sentences; no phones/links/disclaimers.
+ */
+function answerPastSpecialOrCustomMod(rawMessage, opts = {}) {
+  const lang = opts.language === "es" ? "es" : "en";
+  const text = String(rawMessage || "").trim();
+  if (!text) return null;
+
+  const hit = findPastSpecialMatch(text);
+  const pastAsk = asksPastSpecial(text);
+  const customAsk = isCustomKitchenMod(text) && !isSeatingPreference(text);
+
+  if (
+    !hit &&
+    !pastAsk &&
+    !(
+      customAsk &&
+      /\b(redfish|pontchartrain|salmon|pasta|blackboard|chalkboard|special)\b/i.test(
+        text
+      )
+    )
+  ) {
+    return null;
+  }
+
+  if (hit) {
+    const canned =
+      lang === "es"
+        ? hit.hostReplyEs || hit.hostReply
+        : hit.hostReply;
+    if (canned) return canned;
+  }
+
+  // Keyword-based proactive match when no catalog hit (still never ask them to guess)
+  const proactive = proactivePastSpecialMatch(text, lang);
+  if (proactive) return proactive;
+
+  return lang === "es"
+    ? pastSpecials.genericHostMatchEs || pastSpecials.genericHostMatch
+    : pastSpecials.genericHostMatch;
+}
+
+/** Immediate concrete build from guest keywords — never “list your flavors.” */
+function proactivePastSpecialMatch(text, lang) {
+  const t = String(text || "").toLowerCase();
+  const side =
+    lang === "es"
+      ? pastSpecials.sideSwapReminderEs || pastSpecials.sideSwapReminder
+      : pastSpecials.sideSwapReminder;
+
+  if (/\b(pasta|fettuccine|linguini|linguine|penne)\b/i.test(t) && /\bsalmon\b/i.test(t)) {
+    return lang === "es"
+      ? `Los especiales de pasta del pizarrón rotan, así que ese plato exacto no está en el board de hoy. ¡Pero sí podemos blacken nuestro Salmon fresco y mezclarlo con pasta en salsa ajo-crema o cajún para esos mismos sabores. ${side}`
+      : `Our chalkboard pasta specials rotate, so that exact dish isn’t on today’s board! However, we can blacken our fresh Salmon and toss it with pasta in a garlic-cream or Cajun sauce to match those exact flavors. ${side}`;
+  }
+  if (/\bpasta\b/i.test(t)) {
+    return lang === "es"
+      ? `Los especiales de pasta del pizarrón rotan, así que ese plato exacto no está en el board de hoy. ¡Pero sí podemos preparar pescado o camarón blackened con pasta en salsa ajo-crema o estilo cajún. ${side}`
+      : `Our chalkboard pasta specials rotate, so that exact dish isn’t on today’s board! However, we can do blackened fish or shrimp tossed with pasta in a garlic-cream or Cajun-style sauce. ${side}`;
+  }
+  if (/\bsalmon\b/i.test(t)) {
+    return lang === "es"
+      ? `Los especiales del pizarrón rotan, así que ese salmon especial puede no estar hoy. ¡Pero sí podemos blacken o asar nuestro Salmon fresco con un acabado ajo-crema o cajún para acercarnos a esos sabores. ${side}`
+      : `Our chalkboard specials rotate, so that exact salmon special may not be on today’s board! However, we can blacken or grill our fresh Salmon with a garlic-cream or Cajun finish to match those flavors. ${side}`;
+  }
+  if (/\bredfish|red fish\b/i.test(t)) {
+    return lang === "es"
+      ? `Los especiales del pizarrón rotan, así que ese redfish especial puede no estar hoy. ¡Pero sí podemos blacken nuestro Texas Redfish y acompañarlo con camarón, mantequilla de crawfish o sazón cajún. ${side}`
+      : `Our chalkboard specials rotate, so that exact redfish special may not be on today’s board! However, we can blacken our Texas Redfish and finish it with shrimp, crawfish butter, or Cajun seasoning. ${side}`;
+  }
+  return null;
 }
 
 function managerFallbackAnswer(knownBits = []) {
@@ -462,6 +729,8 @@ export function generateReply(rawMessage, opts = {}) {
   }
 
   if (isSideSwap(text)) {
+    const pastCombo = answerPastSpecialOrCustomMod(text, { language: lang });
+    if (pastCombo && asksPastSpecial(text)) return pastCombo;
     const otherHits = findAllFaq(lower).filter((i) => i.id !== "side-swap");
     const parts = [sideSwapAnswer(lang)];
     for (const hit of otherHits) parts.push(resolveAnswer(hit));
@@ -469,54 +738,56 @@ export function generateReply(rawMessage, opts = {}) {
     return parts.join("\n\n");
   }
 
+  const pastOrCustom = answerPastSpecialOrCustomMod(text, { language: lang });
+  if (pastOrCustom) return pastOrCustom;
+
   const partySize = extractPartySize(text);
   const askingLargeParty =
-    /\b(how big|max party|largest party|party size limit|how many people can|how large|big group|large group|large party|grupo grande|cu[aá]ntas personas|mesa para (1[3-9]|[2-9]\d))\b/i.test(
+    /\b(how big|max party|largest party|party size limit|how many people can|how large|big group|large group|large party|grupo grande|cu[aá]ntas personas|mesa para (8|9|[1-9]\d)|table for (8|9|[1-9]\d)|party of (8|9|[1-9]\d))\b/i.test(
       text
-    ) ||
-    (partySize != null && partySize > MAX_ONLINE_PARTY);
+    ) || isLargeOnlineParty(partySize);
 
-  if (askingLargeParty && (partySize == null || partySize > MAX_ONLINE_PARTY)) {
-    // Still attach other FAQ parts (e.g. allergy + party in one message)
+  if (askingLargeParty && (partySize == null || isLargeOnlineParty(partySize))) {
     const otherHits = findAllFaq(lower).filter(
       (i) => !["party-size-max", "party-of-6", "reservations-yes"].includes(i.id)
     );
-    const parts = [largePartyAnswer(partySize)];
+    const parts = [largePartyAnswer(partySize, lang)];
     for (const hit of otherHits) {
-      parts.push(resolveAnswer(hit));
+      parts.push(resolveAnswer(hit, lang));
     }
     if (isSeatingPreference(text) || isCustomKitchenMod(text)) {
       parts.push(MANAGER_OPTION);
     }
-    return parts.join("\n\n");
+    return ensureSingleAllergyDisclaimer(parts.join("\n\n"), lang);
   }
 
   const hits = findAllFaq(lower);
   if (hits.length >= 2) {
-    const parts = hits.map((h) => resolveAnswer(h));
+    const parts = hits.map((h) => resolveAnswer(h, lang));
     if (isSeatingPreference(text) || isCustomKitchenMod(text)) {
       parts.push(MANAGER_OPTION);
     }
-    // If any allergy topic appeared, ensure disclaimer once at end
-    if (
-      hits.some((h) => ALLERGY_FAQ_IDS.has(h.id)) &&
-      !parts.join("\n").includes(ALLERGY_DISCLAIMER)
-    ) {
-      parts.push(ALLERGY_DISCLAIMER);
-    }
-    return parts.join("\n\n");
+    // Disclaimer is woven into allergy/menu FAQ answers — never a trailing standalone block
+    return ensureSingleAllergyDisclaimer(parts.join("\n\n"), lang);
   }
 
   if (hits.length === 1) {
-    let answer = resolveAnswer(hits[0]);
+    let answer = resolveAnswer(hits[0], lang);
     if (isSeatingPreference(text) || isCustomKitchenMod(text)) {
       answer = managerFallbackAnswer([answer]);
     }
-    return answer;
+    return ensureSingleAllergyDisclaimer(answer, lang);
   }
 
-  // No FAQ hit — seating / custom kitchen still get a useful fallback
-  if (isSeatingPreference(text) || isCustomKitchenMod(text)) {
+  // No FAQ hit — seating still gets manager fallback; food custom mods try past-special rule first
+  const pastFallback = answerPastSpecialOrCustomMod(text, { language: lang });
+  if (pastFallback) return pastFallback;
+  if (isSeatingPreference(text)) {
+    return managerFallbackAnswer([
+      `I can help with hours, menu, specials, allergies, and reservations from our knowledge base.`,
+    ]);
+  }
+  if (isCustomKitchenMod(text)) {
     return managerFallbackAnswer([
       `I can help with hours, menu, specials, allergies, and reservations from our knowledge base.`,
     ]);
@@ -536,11 +807,21 @@ export {
   extractPartySize,
   largePartyAnswer,
   composeMultiPartReply,
+  composeEscalationReply,
+  needsManagerEscalation,
+  asksManagerEscalation,
+  managerEscalationLine,
   happyHourAnswer,
   parkingAnswer,
   asksHappyHour,
+  answerPastSpecialOrCustomMod,
+  asksPastSpecial,
+  isLargeOnlineParty,
   MAX_ONLINE_PARTY,
   ALLERGY_DISCLAIMER,
+  ALLERGY_DISCLAIMER_ES,
+  ensureSingleAllergyDisclaimer,
+  hasAllergyDisclaimer,
   MANAGER_OPTION,
   withAllergyDisclaimer,
 };

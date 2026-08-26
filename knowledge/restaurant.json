@@ -14,13 +14,34 @@
   "everydayMenuNotes": "Everyday / regular menu catalog for demo testing (separate from chalkboard).",
   "timezone": "America/Chicago",
   "hours": {
-    "monday": { "open": "11:00", "close": "21:00" },
-    "tuesday": { "open": "11:00", "close": "21:00" },
-    "wednesday": { "open": "11:00", "close": "21:00" },
-    "thursday": { "open": "11:00", "close": "21:00" },
-    "friday": { "open": "11:00", "close": "22:00" },
-    "saturday": { "open": "11:00", "close": "22:00" },
-    "sunday": { "open": "11:00", "close": "21:00" },
+    "monday": {
+      "open": "11:00",
+      "close": "21:00"
+    },
+    "tuesday": {
+      "open": "11:00",
+      "close": "21:00"
+    },
+    "wednesday": {
+      "open": "11:00",
+      "close": "21:00"
+    },
+    "thursday": {
+      "open": "11:00",
+      "close": "21:00"
+    },
+    "friday": {
+      "open": "11:00",
+      "close": "22:00"
+    },
+    "saturday": {
+      "open": "11:00",
+      "close": "22:00"
+    },
+    "sunday": {
+      "open": "11:00",
+      "close": "21:00"
+    },
     "display": "Mon–Thu & Sun 11am–9pm · Fri–Sat 11am–10pm"
   },
   "happyHour": {
@@ -51,27 +72,33 @@
     "summary": "Yes — we offer catering. Call (210) 455-3474 and ask about catering options for your group or event."
   },
   "policies": {
-    "maxOnlinePartySize": 12,
+    "maxOnlinePartySize": 7,
     "allergyDisclaimer": "Please notify your server of severe allergies upon arrival so our kitchen can take extra precautions against cross-contamination.",
     "allergyDisclaimerEs": "Por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada.",
     "managerOption": "please call (210) 455-3474 and ask for a manager, or ask for a manager when you arrive.",
     "sideSubstitutions": "Yes — we can change out any side item for our other side items that we have listed. Tell your server (or note it on your to-go order) which listed side you’d like instead.",
     "sideSubstitutionsEs": "Sí — podemos cambiar cualquier guarnición (side) por otras guarniciones que tengamos listadas. Dile a tu mesero (o anótalo en tu orden para llevar) cuál de las sides listadas prefieres en su lugar.",
-    "glutenFryer": "We offer a gluten-free menu (see https://www.fishcitygrill.com/locations/culebra). We cannot promise a separate fryer from breaded chicken or other fried items — shared oil / cross-contact can happen. Please tell your server about celiac/gluten needs when you order, or call (210) 455-3474 so a manager can guide you.",
-    "glutenFryerEs": "Tenemos menú sin gluten (ver https://www.fishcitygrill.com/locations/culebra). No podemos garantizar una freidora separada del pollo empanizado u otros fritos — puede haber aceite compartido / contaminación cruzada. Avisa a tu mesero de celiaquía/gluten al ordenar, o llama al (210) 455-3474 para que un manager te oriente."
+    "pastSpecialsRule": "Host tone for past chalkboard specials: acknowledge that boards rotate; immediately suggest a concrete available-menu build (never ask the guest to list flavors); confirm side swaps in one smooth sentence; keep replies to 3–4 sentences; never repeat disclaimers, links, or phone numbers.",
+    "glutenFryer": "We offer a gluten-free menu (see https://www.fishcitygrill.com/locations/culebra). We cannot promise a separate fryer from breaded chicken or other fried items — shared oil / cross-contact can happen; please notify your server of severe allergies upon arrival so our kitchen can take extra precautions against cross-contamination.",
+    "glutenFryerEs": "Tenemos menú sin gluten (ver https://www.fishcitygrill.com/locations/culebra). No podemos garantizar una freidora separada del pollo empanizado u otros fritos — puede haber aceite compartido / contaminación cruzada; por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada.",
+    "largePartyAnswer": "For a group this size, please call (210) 455-3474 directly so our management team can secure the best table available for you.",
+    "largePartyAnswerEs": "Para grupos de este tamaño, por favor llama directamente al (210) 455-3474 para que nuestro equipo de gerencia te asegure la mejor mesa disponible."
   },
   "reservations": {
     "summary": "Yes — we take reservations (including via OpenTable). You can request one in this chat, book online, or call (210) 455-3474.",
     "walkIns": "Walk-ins are welcome. Waits can happen when we're busy — reservations are the safest bet for a preferred time.",
     "largeParty": "NEED_MANAGER_CONFIRM",
-    "largePartyAnswer": "Our maximum party size for booking here is 12. For parties larger than 12, I’ll transfer you to a manager — please call (210) 455-3474 and ask for a manager, or stay here and I’ll flag a manager to follow up.",
+    "largePartyAnswer": "For group reservations of this size (or to speak with management), I am alerting our team right now. Please stay on the line while I connect you to a manager.",
+    "largePartyAnswerEs": "Para reservaciones de grupo de este tamaño (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager.",
     "kids": "Families are welcome. Ask your server about kid-friendly options.",
     "highChairs": "High chairs / booster seats are typically available — ask when you arrive or note it on your reservation request.",
     "splitChecks": "We can usually split checks — let your server know early in the meal.",
     "corkage": "NEED_MANAGER_CONFIRM",
     "corkageAnswer": "Ask a manager about corkage / bringing your own bottle — call (210) 455-3474.",
     "cake": "You're welcome to ask about bringing a celebration cake — call ahead so we can plan with you: (210) 455-3474.",
-    "giftCards": "Gift cards are available: https://fishcitygrill.cardfoundry.com/"
+    "giftCards": "Gift cards are available: https://fishcitygrill.cardfoundry.com/",
+    "managerEscalation": "For group reservations of this size (or to speak with management), I am alerting our team right now. Please stay on the line while I connect you to a manager.",
+    "managerEscalationEs": "Para reservaciones de grupo de este tamaño (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager."
   },
   "takeout": {
     "summary": "To-go / takeout is available. Place an order in this chat, call (210) 455-3474, or order online."

@@ -1,15 +1,20 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { restaurant, ALLERGY_DISCLAIMER } from "./reply.js";
+import { restaurant, ALLERGY_DISCLAIMER, ALLERGY_DISCLAIMER_ES, hasAllergyDisclaimer, ensureSingleAllergyDisclaimer } from "./reply.js";
 import { getSoldOut } from "./store.js";
 import { readCachedBoard } from "./read-board.js";
 
-function withAllergySafety(text) {
-  const body = String(text || "").trim();
+function withAllergySafety(text, lang = "en") {
+  let body = String(text || "").trim();
   if (!body) return body;
-  if (body.includes(ALLERGY_DISCLAIMER)) return body;
-  return `${body}\n\n${ALLERGY_DISCLAIMER}`;
+  if (hasAllergyDisclaimer(body)) {
+    return ensureSingleAllergyDisclaimer(body, lang);
+  }
+  const disc = lang === "es" ? ALLERGY_DISCLAIMER_ES : ALLERGY_DISCLAIMER;
+  // Weave into the menu section — not a trailing standalone block
+  body = `${body.replace(/\s+$/, "")} ${disc}`;
+  return ensureSingleAllergyDisclaimer(body, lang);
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

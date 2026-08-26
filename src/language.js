@@ -96,8 +96,9 @@ export function languagePromptBlock(language) {
 LANGUAGE (ACTIVE — guest greeted or is speaking Spanish):
 - Reply entirely in natural, friendly Spanish (Mexican / US Southwest restaurant style is fine).
 - Keep dish names, brand names, URLs, prices, and phone numbers as written in the knowledge.
-- Allergy disclaimer: if allergies come up, include this Spanish version verbatim:
+- Allergy / shared-fryer safety: if allergies or fryers come up, weave this ONCE into the menu section (never a standalone line at the end):
   "Por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada."
+- Parties of 8+ or “hablar con gerencia/manager/dueño”: alert managers internally, then tell the guest — "Para reservaciones de grupo de este tamaño (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager." Answer safe questions (horario, patio, sides) in the same reply. Never send MANAGER ALERT text or tell them to call the store while already on the line.
 - If the guest later greets in English (hi/hey/hello), switch fully to English.
 `;
   }

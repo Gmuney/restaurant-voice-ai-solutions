@@ -6,8 +6,12 @@ import {
   extractPartySize,
   largePartyAnswer,
   composeMultiPartReply,
+  composeEscalationReply,
+  needsManagerEscalation,
   happyHourAnswer,
   asksHappyHour,
+  answerPastSpecialOrCustomMod,
+  isLargeOnlineParty,
   MAX_ONLINE_PARTY,
 } from "./reply.js";
 import {
@@ -159,6 +163,7 @@ function managerHelp() {
     '  86 redfish   — mark item sold out (off menu for guests)',
     "  un86 redfish — put it back on",
     "  86 list      — show today's 86 board",
+    "  After 86: bot asks if you want a restock order (YES → qty + notes).",
     "/specials · /setspecials <text> · /rereadboard",
     "/reservations — view recent bookings (demo auto-confirms, no ping) · /orders",
     "/clearchat — reset AI conversation memory for this chat",
@@ -207,8 +212,120 @@ async function apply86(msg, itemRaw) {
   addSoldOut(item, displayName(msg));
   const catalog = findMenuItem(item);
   const detail = catalog?.item?.name ? ` (${catalog.item.name})` : "";
-  await bot.sendMessage(msg.chat.id, `86'd: ${item}${detail}\nGuests will hear we're sold out.`);
-  await notifyManagers(`📣 ${displayName(msg)} 86'd: ${item}${detail}`);
+  const label = `${item}${detail}`;
+  await bot.sendMessage(
+    msg.chat.id,
+    `86'd: ${label}\nGuests will hear we're sold out.`
+  );
+  await notifyManagers(`📣 ${displayName(msg)} 86'd: ${label}`);
+
+  // Ask manager if they want to place a restock / vendor order ASAP
+  setSession(msg.chat.id, {
+    type: "restock",
+    step: "ask",
+    data: {
+      item,
+      label,
+      by: displayName(msg),
+      managerChatId: msg.chat.id,
+    },
+  });
+  await bot.sendMessage(
+    msg.chat.id,
+    `Want to place a restock order for ${label} so we can receive it ASAP and restock for guest orders?\n\nReply YES to start a restock request, or NO to skip.`
+  );
+}
+
+function formatRestock(r) {
+  return [
+    `Restock request ${r.id}`,
+    `Item: ${r.label || r.item}`,
+    `Qty: ${r.qty}`,
+    r.notes ? `Notes: ${r.notes}` : null,
+    `Requested by: ${r.by}`,
+    "Goal: receive ASAP and restock for orders",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** After 86: YES → qty → notes → notify managers; NO → skip. */
+async function handleRestockSession(msg) {
+  const chatId = msg.chat.id;
+  const session = getSession(chatId);
+  if (!session || session.type !== "restock") return false;
+
+  const text = String(msg.text || "").trim();
+  if (/^(cancel|stop|nevermind|nope)$/i.test(text)) {
+    setSession(chatId, null);
+    await bot.sendMessage(
+      chatId,
+      "Restock request cancelled. Item stays 86'd until you un86 it."
+    );
+    return true;
+  }
+
+  const { step, data } = session;
+
+  if (step === "ask") {
+    if (/^(y|yes|yeah|yep|sure|ok|okay)$/i.test(text)) {
+      setSession(chatId, { type: "restock", step: "qty", data });
+      await bot.sendMessage(
+        chatId,
+        `How much ${data.label || data.item} should we order?\n(e.g. "2 cases", "1 box", "10 lb", "1 each")`
+      );
+      return true;
+    }
+    if (/^(n|no|nah|skip)$/i.test(text)) {
+      setSession(chatId, null);
+      await bot.sendMessage(
+        chatId,
+        "Got it — no restock request. Item stays 86'd. You can un86 when stock arrives."
+      );
+      return true;
+    }
+    await bot.sendMessage(
+      chatId,
+      "Please reply YES to place a restock order, or NO to skip."
+    );
+    return true;
+  }
+
+  if (step === "qty") {
+    data.qty = text;
+    setSession(chatId, { type: "restock", step: "notes", data });
+    await bot.sendMessage(
+      chatId,
+      'Any notes for the restock? (vendor, urgency, delivery window)\nOr type "none".'
+    );
+    return true;
+  }
+
+  if (step === "notes") {
+    data.notes = /^(none|n\/a|na|-)$/i.test(text) ? "" : text;
+    setSession(chatId, null);
+    const restock = {
+      id: newId("rst"),
+      item: data.item,
+      label: data.label,
+      qty: data.qty,
+      notes: data.notes,
+      by: data.by || displayName(msg),
+      status: "requested",
+      createdAt: new Date().toISOString(),
+    };
+    const body = formatRestock(restock);
+    await bot.sendMessage(
+      chatId,
+      `Restock request sent to managers:\n\n${body}`
+    );
+    await notifyManagers(
+      `📦 RESTOCK REQUEST (after 86)\n${body}\n\nPlace vendor order ASAP so we can restock for guest orders.`
+    );
+    return true;
+  }
+
+  return false;
 }
 
 async function applyUn86(msg, itemRaw) {
@@ -628,6 +745,13 @@ function wantsChalkboardSpecials(text) {
   if (asksHappyHour(t) && !/\b(chalk\s*-?\s*board|pizarra|daily special|especiales de hoy)\b/i.test(t)) {
     return false;
   }
+  // Past specials / named prior board dishes → past-special handler, not today's board photo
+  if (
+    /\bpontchartrain\b/i.test(t) ||
+    /\b(past|previous|last week'?s?|other day|other night)\b.{0,40}\bspecials?\b/i.test(t)
+  ) {
+    return false;
+  }
   return SPECIALS_TRIGGERS.test(t);
 }
 
@@ -711,13 +835,45 @@ function parseSeatingChoice(text) {
 }
 
 async function transferLargeParty(msg, n) {
+  await escalateToManagers(msg, {
+    reason: "large_party",
+    partySize: n,
+  });
+}
+
+/**
+ * Telegram Manager Alert — internal only (managers get the 🚨 block).
+ * Guest chat gets a clean dual-action reply with no alert banners or call-store prompts.
+ */
+async function escalateToManagers(msg, meta = {}) {
   const chatId = msg.chat.id;
   const lang = getChatLang(chatId) || "en";
+  const partySize =
+    meta.partySize ?? extractPartySize(msg.text) ?? null;
+  const reason = meta.reason || (partySize ? "large_party" : "manager_request");
+
+  // INTERNAL ONLY — never forward this block to the guest chat
+  const alert = [
+    `🚨 MANAGER ALERT — ${reason === "manager_request" ? "guest asked for manager/owner" : `party of ${partySize || "8+"}`}`,
+    `Guest: ${displayName(msg)} (chat ${chatId})`,
+    partySize != null ? `Party size: ${partySize}` : null,
+    `Message: "${msg.text}"`,
+    `Action: Join/take over this chat or call the guest back.`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  await notifyManagers(alert);
+
   setSession(chatId, null);
-  await sendGuest(chatId, largePartyAnswer(n), lang);
-  await notifyManagers(
-    `📞 TRANSFER TO MANAGER — party of ${n} (max ${MAX_ONLINE_PARTY})\nGuest: ${displayName(msg)} (chat ${chatId})\nThey want a reservation larger than our booking max. Please call/text them back.`
-  );
+  const reply = composeEscalationReply(msg.text, { language: lang });
+  // Safety: never leak alert banners into guest chat
+  if (/MANAGER ALERT|🚨/.test(reply)) {
+    console.error("[escalate] blocked internal alert text from guest reply");
+  }
+  appendChatMessage(chatId, { role: "user", content: msg.text });
+  appendChatMessage(chatId, { role: "model", content: reply });
+  await bot.sendMessage(chatId, reply.slice(0, 4000));
+  return true;
 }
 
 function nextReservationPrompt(data, lang = "en") {
@@ -1077,12 +1233,21 @@ bot.on("message", async (msg) => {
   console.log(`[TG] ${displayName(msg)} [${lang}]: ${msg.text}`);
 
   try {
+    // Restock follow-up after 86 (YES/NO → qty → notes)
+    if (await handleRestockSession(msg)) return;
+
     // Manager inventory: "86 redfish" / "un86 redfish" / "86 list" (no slash needed)
     if (await handlePlain86(msg)) return;
 
     if (await handleReservationSession(msg)) return;
     if (await handleOrderSession(msg)) return;
     if (await handleCancelChange(msg)) return;
+
+    // Escalation: party of 8+ (incl. 25+) OR explicit manager/owner ask → alert managers immediately
+    if (needsManagerEscalation(msg.text)) {
+      await escalateToManagers(msg);
+      return;
+    }
 
     // Greeting switches language instantly: "Hola" → Spanish, "Hi/Hey/Hello" → English
     if (isPureGreeting(msg.text)) {
@@ -1096,9 +1261,9 @@ bot.on("message", async (msg) => {
 
     // Multi-part guest questions (party + sides + gluten/fryer, etc.)
     // Prefer structured compose so Spanish answers don't hang on AI timeout.
+    // (Large-party / manager asks already handled by escalateToManagers above.)
     const partySizeHint = extractPartySize(msg.text);
     const multiPartAsk =
-      (partySizeHint != null && partySizeHint > MAX_ONLINE_PARTY) ||
       (/\b(and|,|y|también|tambien)\b/i.test(msg.text) &&
         /\b(booth|gluten|allerg|patio|fryer|freidora|reserv|party|group of|table for|mesa|ni[nñ]os?|sides?|papas?|ensalada|cambiar)\b/i.test(
           msg.text
@@ -1115,33 +1280,17 @@ bot.on("message", async (msg) => {
         appendChatMessage(chatId, { role: "user", content: msg.text });
         appendChatMessage(chatId, { role: "model", content: structured });
         await bot.sendMessage(chatId, structured.slice(0, 4000));
-        if (partySizeHint != null && partySizeHint > MAX_ONLINE_PARTY) {
-          await notifyManagers(
-            `📞 TRANSFER TO MANAGER — party of ${partySizeHint} (max ${MAX_ONLINE_PARTY})\nGuest: ${displayName(msg)} (chat ${chatId})\n"${msg.text}"`
-          );
-        }
         return;
       }
       const aiMulti = await generateAiReply(chatId, msg.text, { language: lang });
       if (aiMulti) {
         await bot.sendMessage(chatId, aiMulti.slice(0, 4000));
-        if (partySizeHint != null && partySizeHint > MAX_ONLINE_PARTY) {
-          await notifyManagers(
-            `📞 TRANSFER TO MANAGER — party of ${partySizeHint} (max ${MAX_ONLINE_PARTY})\nGuest: ${displayName(msg)} (chat ${chatId})\n"${msg.text}"`
-          );
-        }
         return;
       }
-      // Deterministic fallback (never the bare "hi/hey" welcome for real questions)
       const fallback = generateReply(msg.text, { language: lang });
       const localized = lang === "es" ? await translateToSpanish(fallback) : fallback;
       appendChatMessage(chatId, { role: "model", content: localized });
       await bot.sendMessage(chatId, localized);
-      if (partySizeHint != null && partySizeHint > MAX_ONLINE_PARTY) {
-        await notifyManagers(
-          `📞 TRANSFER TO MANAGER — party of ${partySizeHint} (max ${MAX_ONLINE_PARTY})\nGuest: ${displayName(msg)} (chat ${chatId})\n"${msg.text}"`
-        );
-      }
       return;
     }
 
@@ -1153,11 +1302,22 @@ bot.on("message", async (msg) => {
       return;
     }
 
+    // Past chalkboard specials / custom builds (e.g. Redfish Pontchartrain)
+    const pastSpecialReply = answerPastSpecialOrCustomMod(msg.text, {
+      language: lang,
+    });
+    if (pastSpecialReply) {
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: pastSpecialReply });
+      await bot.sendMessage(chatId, pastSpecialReply.slice(0, 4000));
+      return;
+    }
+
     if (wantsToBookReservation(msg.text)) {
       const hints = parseReservationHints(msg.text);
-      const size = hints.partySize ?? partySizeHint;
-      if (size != null && size > MAX_ONLINE_PARTY) {
-        await transferLargeParty(msg, size);
+      const size = hints.partySize ?? extractPartySize(msg.text);
+      if (size != null && isLargeOnlineParty(size)) {
+        await escalateToManagers(msg, { reason: "large_party", partySize: size });
         return;
       }
       await startReservationWizard(chatId, hints, msg);
