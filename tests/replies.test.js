@@ -3,7 +3,7 @@ import {
   faq,
   MAX_ONLINE_PARTY,
   ALLERGY_DISCLAIMER,
-} from "./reply.js";
+} from "../src/engine/reply.js";
 
 const samples = [
   "how big can my party be when reserving",

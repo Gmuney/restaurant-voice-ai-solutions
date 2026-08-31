@@ -1,9 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, "../data");
+import { join } from "node:path";
+import { DATA_DIR } from "./paths.js";
 
 function ensure() {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });

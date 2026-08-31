@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import readline from "node:readline";
-import { generateReply, restaurant } from "./reply.js";
+import { generateReply, restaurant } from "./engine/reply.js";
 
 console.log(` ${restaurant.name} — local FAQ demo`);
 console.log(" Type /quit to exit\n");

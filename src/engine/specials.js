@@ -1,11 +1,11 @@
 import { restaurant } from "./reply.js";
-import { getSpecialsText } from "./store.js";
+import { getSpecialsText } from "../store.js";
 import {
   getBoardReading,
   formatBoardReading,
   readCachedBoard,
   isBoardCacheFresh,
-} from "./read-board.js";
+} from "../board/read-board.js";
 
 /** Pull a dish block (name + following small ingredient/sides lines) from board text. */
 function extractDishBlock(boardText, query) {

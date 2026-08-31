@@ -1,15 +1,13 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { restaurant, MAX_ONLINE_PARTY, ALLERGY_DISCLAIMER } from "./reply.js";
-import { getSoldOut } from "./store.js";
-import { readCachedBoard } from "./read-board.js";
-import { languagePromptBlock } from "./language.js";
+import { join } from "node:path";
+import { restaurant, MAX_ONLINE_PARTY, ALLERGY_DISCLAIMER } from "../engine/reply.js";
+import { getSoldOut } from "../store.js";
+import { readCachedBoard } from "../board/read-board.js";
+import { languagePromptBlock } from "../engine/language.js";
+import { KNOWLEDGE_DIR } from "../paths.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-function loadJson(rel) {
-  return JSON.parse(readFileSync(join(__dirname, rel), "utf8"));
+function loadJson(name) {
+  return JSON.parse(readFileSync(join(KNOWLEDGE_DIR, name), "utf8"));
 }
 
 /**
@@ -17,9 +15,9 @@ function loadJson(rel) {
  * Grounded in uploaded knowledge (menus, policies, allergens) + reply rules.
  */
 export function buildSystemPrompt({ language = "en" } = {}) {
-  const faq = loadJson("../knowledge/faq.json");
-  const menu = loadJson("../knowledge/menu-items.json");
-  const happyHour = loadJson("../knowledge/happy-hour.json");
+  const faq = loadJson("faq.json");
+  const menu = loadJson("menu-items.json");
+  const happyHour = loadJson("happy-hour.json");
   const board = readCachedBoard();
   const sold = getSoldOut().items || [];
 
@@ -47,6 +45,10 @@ export function buildSystemPrompt({ language = "en" } = {}) {
   const soldLine = sold.length
     ? sold.map((s) => s.name).join(", ")
     : "none listed";
+
+  const pastLines = (loadJson("past-specials.json").items || [])
+    .map((i) => `- ${i.displayName}: ${i.hostReply || i.workaround || ""}`)
+    .join("\n");
 
   const boardText = board?.text
     ? `Last chalkboard reading (${board.boardWindow?.label || "board"}):\n${board.text}`
@@ -127,9 +129,7 @@ ${boardText}
 === PAST SPECIALS / HOST MATCHMAKING ===
 ${restaurant.policies?.pastSpecialsRule || ""}
 Known past-special host replies (prefer these when matched):
-${(loadJson("../knowledge/past-specials.json").items || [])
-  .map((i) => `- ${i.displayName}: ${i.hostReply || i.workaround || ""}`)
-  .join("\n")}
+${pastLines}
 
 === ALLERGY POLICY ===
 ${JSON.stringify(restaurant.allergies || {}, null, 2)}

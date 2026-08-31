@@ -1,12 +1,10 @@
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { restaurant } from "./reply.js";
+import { join } from "node:path";
+import { restaurant } from "../engine/reply.js";
+import { DATA_DIR } from "../paths.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, "../data");
 const SNAP_DIR = join(DATA_DIR, "board-snapshots");
 const CACHE_FILE = join(DATA_DIR, "board-reading.json");
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";

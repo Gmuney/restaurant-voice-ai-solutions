@@ -1,18 +1,23 @@
 {
   "name": "restaurant-voice-ai-solutions",
   "version": "1.0.0",
-  "description": "Restaurant Voice AI Solutions — guest messaging pilot (Fish City Grill — Culebra)",
+  "private": true,
+  "description": "AI guest messaging for restaurants — Fish City Grill Culebra pilot",
   "type": "module",
-  "main": "src/server.js",
-  "scripts": {
-    "start": "node src/server.js",
-    "demo": "node src/cli.js",
-    "telegram": "node src/telegram.js",
-    "snapshot-board": "node src/snapshot-board.js",
-    "reocr-board": "node src/reocr-board.js",
-    "test:replies": "node src/smoke-test.js"
+  "main": "src/api/server.js",
+  "engines": {
+    "node": ">=20"
   },
-  "license": "ISC",
+  "scripts": {
+    "start": "node src/api/server.js",
+    "telegram": "node src/bot/telegram.js",
+    "demo": "node src/cli.js",
+    "snapshot-board": "node src/board/snapshot-board.js",
+    "reocr-board": "node src/board/reocr-board.js",
+    "test:replies": "node tests/replies.test.js",
+    "check": "node --check src/bot/telegram.js && node --check src/api/server.js && node --check src/engine/reply.js && node --check src/ai/chat.js"
+  },
+  "license": "UNLICENSED",
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^5.2.1",

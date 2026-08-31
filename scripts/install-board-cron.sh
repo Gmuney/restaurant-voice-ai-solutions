@@ -15,8 +15,8 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 TZ=America/Chicago
 
-0 11 * * * root cd $ROOT && $NODE src/snapshot-board.js lunch >> $LOG 2>&1
-30 16 * * * root cd $ROOT && $NODE src/snapshot-board.js evening >> $LOG 2>&1
+0 11 * * * root cd $ROOT && $NODE src/board/snapshot-board.js lunch >> $LOG 2>&1
+30 16 * * * root cd $ROOT && $NODE src/board/snapshot-board.js evening >> $LOG 2>&1
 EOF
 
 chmod 644 "$CRON_FILE"

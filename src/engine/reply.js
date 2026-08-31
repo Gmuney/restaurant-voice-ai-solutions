@@ -1,19 +1,18 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { KNOWLEDGE_DIR } from "../paths.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const restaurant = JSON.parse(
-  readFileSync(join(__dirname, "../knowledge/restaurant.json"), "utf8")
+  readFileSync(join(KNOWLEDGE_DIR, "restaurant.json"), "utf8")
 );
 const faq = JSON.parse(
-  readFileSync(join(__dirname, "../knowledge/faq.json"), "utf8")
+  readFileSync(join(KNOWLEDGE_DIR, "faq.json"), "utf8")
 );
 const happyHour = JSON.parse(
-  readFileSync(join(__dirname, "../knowledge/happy-hour.json"), "utf8")
+  readFileSync(join(KNOWLEDGE_DIR, "happy-hour.json"), "utf8")
 );
 const pastSpecials = JSON.parse(
-  readFileSync(join(__dirname, "../knowledge/past-specials.json"), "utf8")
+  readFileSync(join(KNOWLEDGE_DIR, "past-specials.json"), "utf8")
 );
 
 const MAX_ONLINE_PARTY =

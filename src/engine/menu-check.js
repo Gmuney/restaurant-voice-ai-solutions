@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { restaurant, ALLERGY_DISCLAIMER, ALLERGY_DISCLAIMER_ES, hasAllergyDisclaimer, ensureSingleAllergyDisclaimer } from "./reply.js";
-import { getSoldOut } from "./store.js";
-import { readCachedBoard } from "./read-board.js";
+import { getSoldOut } from "../store.js";
+import { readCachedBoard } from "../board/read-board.js";
+import { KNOWLEDGE_DIR } from "../paths.js";
 
 function withAllergySafety(text, lang = "en") {
   let body = String(text || "").trim();
@@ -17,9 +17,8 @@ function withAllergySafety(text, lang = "en") {
   return ensureSingleAllergyDisclaimer(body, lang);
 }
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const catalog = JSON.parse(
-  readFileSync(join(__dirname, "../knowledge/menu-items.json"), "utf8")
+  readFileSync(join(KNOWLEDGE_DIR, "menu-items.json"), "utf8")
 );
 
 function everydayMenuLink() {

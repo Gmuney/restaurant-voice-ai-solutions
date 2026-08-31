@@ -7,8 +7,8 @@ import {
   trimChatMessages,
   getChatLang,
   setChatLang,
-} from "./store.js";
-import { resolveGuestLanguage } from "./language.js";
+} from "../store.js";
+import { resolveGuestLanguage } from "../engine/language.js";
 
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 const GEMINI_MODEL =
