@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { KNOWLEDGE_DIR } from "../paths.js";
+import { getSoldOut } from "../store.js";
+import { hasClearSpanish, isTexasEnglishSlang } from "./language.js";
 
 const restaurant = JSON.parse(
   readFileSync(join(KNOWLEDGE_DIR, "restaurant.json"), "utf8")
@@ -130,18 +132,30 @@ function asksHours(text) {
 
 /** Prefer the language of this hours question over sticky chat language. */
 function hoursReplyLanguage(text, fallback = "en") {
+  if (isTexasEnglishSlang(text) && !hasClearSpanish(text)) return "en";
+  if (hasClearSpanish(text) && !isTexasEnglishSlang(text)) {
+    const t = foldForMatch(text);
+    if (
+      /\b(horario|horarios|abierto|cerrado|abren|cierran|a que hora|que hora)\b/.test(t)
+    ) {
+      return "es";
+    }
+  }
+
   const t = foldForMatch(text);
   const esCue =
-    /\b(horario|horarios|abierto|abiertos|cerrado|cerrados|restaurante|a que hora|que hora abren|que hora cierran|estan|esta|hola|buenas)\b/.test(
+    /\b(horario|horarios|abierto|abiertos|cerrado|cerrados|a que hora|que hora abren|que hora cierran|hola|buenas)\b/.test(
       t
     );
   const enCue =
-    /\b(hours|open|closed|restaurant open|are you|is the|what time|what are)\b/.test(
+    /\b(hours|open|closed|restaurant open|are you|is the|what time|what are|yall|howdy)\b/.test(
       t
     );
   if (esCue && !enCue) return "es";
   if (enCue && !esCue) return "en";
-  if (esCue) return "es";
+  if (enCue && esCue) {
+    return hasClearSpanish(text) ? "es" : "en";
+  }
   return fallback === "es" ? "es" : "en";
 }
 
@@ -275,6 +289,7 @@ function standardEscalationAnswers(text, lang = "en") {
   if (asksHours(text)) {
     bits.push(hoursAnswer(lang));
   }
+  if (asksKidsMeal(text)) bits.push(kidsMealReply(text, lang));
   if (asksParking(text)) bits.push(parkingAnswer(lang));
   if (asksHappyHour(text)) {
     bits.push(
@@ -283,7 +298,7 @@ function standardEscalationAnswers(text, lang = "en") {
         : `Happy Hour is ${happyHour.days || "Sunday–Friday"}, ${happyHour.hours || "3–6pm"} (separate from chalkboard specials).`
     );
   }
-  if (isSideSwap(text)) bits.push(sideSwapAnswer(lang));
+  if (isSideSwap(text) && !asksKidsMeal(text)) bits.push(sideSwapAnswer(lang));
   if (asksCateringEscalation(text) && !isLargeOnlineParty(extractPartySize(text))) {
     // Brief catering confirm before transfer — no phone/call prompt
     bits.push(
@@ -418,9 +433,13 @@ function findAllFaq(lower) {
   return kept.map((h) => h.item);
 }
 
-function resolveAnswer(item, lang = "en") {
+function resolveAnswer(item, lang = "en", guestText = "") {
   let answer;
   if (item.type === "hours") answer = hoursAnswer(lang);
+  else if (item.type === "kids-meal" || item.id === "kids-menu")
+    answer = kidsMealReply(guestText, lang);
+  else if (item.type === "kids-sides" || item.id === "kids-sides")
+    answer = kidsMealReply(guestText || "what sides come with that", lang);
   else if (item.type === "happy-hour" || item.id === "happy-hour" || item.id === "hh-food")
     answer = happyHourAnswer(lang);
   else if (
@@ -550,6 +569,161 @@ function sideSwapAnswer(lang = "en") {
   );
 }
 
+const KIDS_ENTREE_CHOICES = [
+  { name: "Kids Fish Sticks", aliases: ["fish sticks", "fishsticks", "kids fish sticks"] },
+  { name: "Fried Shrimp", aliases: ["fried shrimp", "kids fried shrimp", "kids shrimp"] },
+  { name: "Chicken Strips", aliases: ["chicken strips", "chicken tenders", "kids chicken", "kids tenders"] },
+  { name: "Cheeseburgers", aliases: ["cheeseburger", "cheeseburgers", "kids cheeseburger"] },
+  { name: "Hamburgers", aliases: ["hamburger", "hamburgers", "kids hamburger", "kids burger"] },
+];
+
+const KIDS_SIDE_CHOICES = [
+  { name: "Broccoli", aliases: ["broccoli", "brocolli", "brocoli", "broccolli", "brócoli"] },
+  {
+    name: "Virginia's Apple Cider Coleslaw",
+    aliases: [
+      "virginia's apple cider coleslaw",
+      "apple cider coleslaw",
+      "coleslaw",
+      "cole slaw",
+      "slaw",
+    ],
+  },
+  { name: "Corn on the Cob", aliases: ["corn on the cob", "corn", "elote"] },
+  { name: "White Rice", aliases: ["white rice", "rice", "arroz", "arroz blanco"] },
+  { name: "Hush Puppies", aliases: ["hush puppies", "hushpuppy", "hush puppy"] },
+  { name: "Fries", aliases: ["fries", "fry", "french fries", "papas", "papas fritas"] },
+];
+
+function escapeRe(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Kids menu / kids meal questions (not reservation "how many kids"). */
+function asksKidsMeal(text) {
+  const t = String(text || "");
+  if (
+    /\b(how many kids|cu[aá]ntos ni[nñ]os|adults and kids|adultos y ni[nñ]os)\b/i.test(t)
+  ) {
+    return false;
+  }
+  return (
+    /\b(kids?\s*menu|kid'?s\s*menu|children'?s\s*menu|menu infantil)\b/i.test(t) ||
+    /\b(kids?\s*meals?|kid'?s\s*meals?|children'?s\s*meals?|kids?\s*plates?|kids?\s*portions?|kids?\s*entrees?|kids?\s*entr[eé]es?)\b/i.test(
+      t
+    ) ||
+    /\b(sides?|options?|guarnici|acompañ).{0,40}\b(kids?|children|ni[nñ]os?)\b/i.test(t) ||
+    /\b(kids?|children|ni[nñ]os?).{0,40}\b(sides?|options?|guarnici|acompañ)\b/i.test(t) ||
+    /\b(for (a |the )?kids?|kid[- ]friendly (food|menu)|comida de ni[nñ]os?|para (los )?ni[nñ]os?)\b/i.test(
+      t
+    ) ||
+    /\b(family options|family menu|options for (the )?(famil|children))\b/i.test(t) ||
+    (/\b(my|our|the)\s+kids?\b/i.test(t) &&
+      /\b(get|have|eat|order|meal|menu|side|fries|broccoli|corn|rice|slaw|hush|coleslaw)\b/i.test(
+        t
+      )) ||
+    asksKidsSideList(t)
+  );
+}
+
+/** List named kids sides only when the guest asks what sides / side options. */
+function asksKidsSideList(text) {
+  const t = String(text || "");
+  return (
+    /\bwhat sides come with(\s+(that|this|it|the kids?( meal| menu)?|a kids? meal))?\b/i.test(
+      t
+    ) ||
+    /\bwhat (comes|come) with (a |the )?(kids?|that|this)\b/i.test(t) ||
+    /\b(what|which) (are the |kids? )?(side options|sides)\b/i.test(t) ||
+    /\b(side options|kids? (meal |menu )?sides|sides? (for|with) (the )?(kids?|children)|list (the )?sides)\b/i.test(
+      t
+    ) ||
+    /\b(guarniciones|qu[eé] (sides|guarnici)|opciones de (side|guarnici))\b/i.test(t)
+  );
+}
+
+function kidsEntreesLine(lang = "en") {
+  if (lang === "es") {
+    return (
+      restaurant.policies?.kidsMenuEntreesEs ||
+      "¡Sí! Ofrecemos un menú infantil con Kids Fish Sticks, camarón frito, chicken strips, cheeseburgers y hamburguesas."
+    );
+  }
+  return (
+    restaurant.policies?.kidsMenuEntrees ||
+    "Yes! We offer a dedicated Kids Menu featuring Kids Fish Sticks, Fried Shrimp, Chicken Strips, Cheeseburgers, and Hamburgers."
+  );
+}
+
+function kidsSidesBrief(lang = "en") {
+  if (lang === "es") {
+    return (
+      restaurant.policies?.kidsMealSidesBriefEs ||
+      "Todas las comidas infantiles incluyen tu elección de UNA guarnición, y podemos sustituir casi cualquier side estándar si lo pides."
+    );
+  }
+  return (
+    restaurant.policies?.kidsMealSidesBrief ||
+    "All kids meals include your choice of ONE side, and we can substitute pretty much any standard side upon request!"
+  );
+}
+
+function kidsSidesList(lang = "en") {
+  if (lang === "es") {
+    return (
+      restaurant.policies?.kidsMealSidesEs ||
+      "Las guarniciones infantiles son brócoli, Virginia's Apple Cider Coleslaw, elote, arroz blanco, hush puppies o papas fritas."
+    );
+  }
+  return (
+    restaurant.policies?.kidsMealSides ||
+    "Kids sides are Broccoli, Virginia's Apple Cider Coleslaw, Corn on the Cob, White Rice, Hush Puppies, or Fries."
+  );
+}
+
+function namedKidsItems(text) {
+  const t = String(text || "").toLowerCase();
+  return [...KIDS_ENTREE_CHOICES, ...KIDS_SIDE_CHOICES].filter((item) =>
+    item.aliases.some((a) => new RegExp(`\\b${escapeRe(a)}\\b`, "i").test(t))
+  );
+}
+
+/** 86 a kids item only when the guest named it. */
+function eightySixedNamedKidsItems(text) {
+  const named = namedKidsItems(text);
+  if (!named.length) return [];
+  const sold = getSoldOut().items || [];
+  const hits = [];
+  for (const item of named) {
+    const match = sold.find((s) => {
+      const sn = String(s.name || "").toLowerCase();
+      if (!sn) return false;
+      if (sn.includes(item.name.toLowerCase()) || item.name.toLowerCase().includes(sn)) {
+        return true;
+      }
+      return item.aliases.some((a) => sn.includes(a) || a.includes(sn));
+    });
+    if (match) hits.push(match.name || item.name);
+  }
+  return [...new Set(hits)];
+}
+
+function kidsMealReply(text, lang = "en") {
+  let body = `${kidsEntreesLine(lang)}\n\n${kidsSidesBrief(lang)}`;
+  if (asksKidsSideList(text)) {
+    body += `\n\n${kidsSidesList(lang)}`;
+  }
+
+  const soldNamed = eightySixedNamedKidsItems(text);
+  if (soldNamed.length) {
+    body +=
+      lang === "es"
+        ? `\n\nHoy estamos 86'd de ${soldNamed.join(", ")}, así que eso no está disponible en el menú infantil.`
+        : `\n\nWe're sold out of ${soldNamed.join(", ")} today, so that wouldn't be available on the kids menu.`;
+  }
+  return body;
+}
+
 function asksGluten(text) {
   return /\b(gluten|celiac|cel[ií]aco|sin gluten)\b/i.test(text);
 }
@@ -666,7 +840,8 @@ function composeMultiPartReply(rawMessage, opts = {}) {
   const partyBit = partyBookingAnswer(partySize, text, lang);
   if (partyBit) parts.push(partyBit);
 
-  if (isSideSwap(text)) parts.push(sideSwapAnswer(lang));
+  if (asksKidsMeal(text)) parts.push(kidsMealReply(text, lang));
+  else if (isSideSwap(text)) parts.push(sideSwapAnswer(lang));
   if (asksHappyHour(text)) parts.push(happyHourAnswer(lang));
   if (asksParking(text)) parts.push(parkingAnswer(lang));
 
@@ -678,6 +853,8 @@ function composeMultiPartReply(rawMessage, opts = {}) {
   const lower = text.toLowerCase();
   const skip = new Set([
     "side-swap",
+    "kids-menu",
+    "kids-sides",
     "gluten",
     "party-size-max",
     "party-of-6",
@@ -701,7 +878,7 @@ function composeMultiPartReply(rawMessage, opts = {}) {
     return true;
   });
   for (const hit of extra.slice(0, 2)) {
-    const ans = resolveAnswer(hit, lang);
+    const ans = resolveAnswer(hit, lang, text);
     if (ans && !parts.some((p) => p.includes(ans.slice(0, 40)))) {
       parts.push(ans);
     }
@@ -864,6 +1041,11 @@ export function generateReply(rawMessage, opts = {}) {
     return hoursAnswer(hoursLang);
   }
 
+  // Kids menu: exactly ONE side; 86 a side only if the guest named it
+  if (asksKidsMeal(text)) {
+    return kidsMealReply(text, lang);
+  }
+
   if (
     /^help\b/.test(lower) ||
     /^ayuda\b/.test(lower) ||
@@ -906,7 +1088,7 @@ export function generateReply(rawMessage, opts = {}) {
     if (pastCombo && asksPastSpecial(text)) return pastCombo;
     const otherHits = findAllFaq(lower).filter((i) => i.id !== "side-swap");
     const parts = [sideSwapAnswer(lang)];
-    for (const hit of otherHits) parts.push(resolveAnswer(hit));
+    for (const hit of otherHits) parts.push(resolveAnswer(hit, lang, text));
     if (isSeatingPreference(text)) parts.push(MANAGER_OPTION);
     return parts.join("\n\n");
   }
@@ -926,7 +1108,7 @@ export function generateReply(rawMessage, opts = {}) {
     );
     const parts = [largePartyAnswer(partySize, lang)];
     for (const hit of otherHits) {
-      parts.push(resolveAnswer(hit, lang));
+      parts.push(resolveAnswer(hit, lang, text));
     }
     if (isSeatingPreference(text) || isCustomKitchenMod(text)) {
       parts.push(MANAGER_OPTION);
@@ -936,7 +1118,7 @@ export function generateReply(rawMessage, opts = {}) {
 
   const hits = findAllFaq(lower);
   if (hits.length >= 2) {
-    const parts = hits.map((h) => resolveAnswer(h, lang));
+    const parts = hits.map((h) => resolveAnswer(h, lang, text));
     if (isSeatingPreference(text) || isCustomKitchenMod(text)) {
       parts.push(MANAGER_OPTION);
     }
@@ -945,7 +1127,7 @@ export function generateReply(rawMessage, opts = {}) {
   }
 
   if (hits.length === 1) {
-    let answer = resolveAnswer(hits[0], lang);
+    let answer = resolveAnswer(hits[0], lang, text);
     if (isSeatingPreference(text) || isCustomKitchenMod(text)) {
       answer = managerFallbackAnswer([answer]);
     }
@@ -990,6 +1172,8 @@ export {
   asksHours,
   hoursReplyLanguage,
   asksHappyHour,
+  asksKidsMeal,
+  kidsMealReply,
   answerPastSpecialOrCustomMod,
   asksPastSpecial,
   isLargeOnlineParty,

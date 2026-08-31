@@ -89,6 +89,16 @@
         "desserts",
         "sweets"
       ]
+    },
+    {
+      "id": "kids",
+      "label": "Kids Menu",
+      "aliases": [
+        "kids",
+        "kids menu",
+        "kid menu",
+        "children's menu"
+      ]
     }
   ],
   "items": [
@@ -867,6 +877,131 @@
       "cook": [
         "varies"
       ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "corn-on-the-cob",
+      "name": "Corn on the Cob",
+      "aliases": [
+        "corn on the cob",
+        "corn",
+        "elote"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Kids-meal and a la carte side.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "boiled"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "white-rice",
+      "name": "White Rice",
+      "aliases": [
+        "white rice",
+        "rice",
+        "arroz",
+        "arroz blanco"
+      ],
+      "category": "sides",
+      "onMenu": true,
+      "blurb": "Kids-meal and a la carte side.",
+      "proteins": [
+        "vegetarian"
+      ],
+      "cook": [
+        "steamed"
+      ],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "kids-fish-sticks",
+      "name": "Kids Fish Sticks",
+      "aliases": [
+        "kids fish sticks",
+        "kid fish sticks",
+        "fish sticks",
+        "fishsticks"
+      ],
+      "category": "kids",
+      "onMenu": true,
+      "blurb": "Kids menu entree. Comes with one side.",
+      "proteins": ["fish"],
+      "cook": ["fried"],
+      "fish": true,
+      "shellfish": false
+    },
+    {
+      "id": "kids-fried-shrimp",
+      "name": "Kids Fried Shrimp",
+      "aliases": [
+        "kids fried shrimp",
+        "kid fried shrimp",
+        "kids shrimp"
+      ],
+      "category": "kids",
+      "onMenu": true,
+      "blurb": "Kids menu entree. Comes with one side.",
+      "proteins": ["shellfish"],
+      "cook": ["fried"],
+      "fish": false,
+      "shellfish": true
+    },
+    {
+      "id": "kids-chicken-strips",
+      "name": "Kids Chicken Strips",
+      "aliases": [
+        "kids chicken strips",
+        "kid chicken strips",
+        "chicken strips",
+        "chicken tenders",
+        "kids tenders"
+      ],
+      "category": "kids",
+      "onMenu": true,
+      "blurb": "Kids menu entree. Comes with one side.",
+      "proteins": ["chicken"],
+      "cook": ["fried"],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "kids-cheeseburger",
+      "name": "Kids Cheeseburger",
+      "aliases": [
+        "kids cheeseburger",
+        "kid cheeseburger",
+        "kids cheeseburgers"
+      ],
+      "category": "kids",
+      "onMenu": true,
+      "blurb": "Kids menu entree. Comes with one side.",
+      "proteins": ["beef"],
+      "cook": ["grilled"],
+      "fish": false,
+      "shellfish": false
+    },
+    {
+      "id": "kids-hamburger",
+      "name": "Kids Hamburger",
+      "aliases": [
+        "kids hamburger",
+        "kid hamburger",
+        "kids hamburgers",
+        "kids burger"
+      ],
+      "category": "kids",
+      "onMenu": true,
+      "blurb": "Kids menu entree. Comes with one side.",
+      "proteins": ["beef"],
+      "cook": ["grilled"],
       "fish": false,
       "shellfish": false
     },

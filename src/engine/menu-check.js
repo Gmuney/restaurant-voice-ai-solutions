@@ -119,6 +119,17 @@ function wantsCategoryList(text) {
   const cat = findCategory(text);
   if (!cat) return null;
 
+  // Kids meal / family-options copy is a dedicated two-block reply, not a category dump
+  if (
+    cat.id === "kids" ||
+    (cat.id === "sides" &&
+      /\b(kids?|kid'?s|children'?s|ni[nñ]os?|menu infantil|family options|family menu)\b/i.test(
+        text
+      ))
+  ) {
+    return null;
+  }
+
   // "do you have tacos?" is availability-ish but listing tacos is better
   const listLike =
     LIST_TRIGGERS.test(text) ||

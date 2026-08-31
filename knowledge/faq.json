@@ -390,12 +390,43 @@
       "includes": [
         "kids menu",
         "kid menu",
+        "kid's menu",
         "children's menu",
+        "kids meal",
+        "kid meal",
+        "kid's meal",
+        "kids meals",
+        "children's meal",
         "for kids",
         "kid friendly",
-        "kids eat"
+        "kids eat",
+        "menu infantil",
+        "family options",
+        "family menu",
+        "options for families",
+        "options for children"
       ],
-      "answer": "Families are welcome. Ask your server about kid-friendly options when you arrive — or note kids on your reservation request."
+      "type": "kids-meal",
+      "answer": "Yes! We offer a dedicated Kids Menu featuring Kids Fish Sticks, Fried Shrimp, Chicken Strips, Cheeseburgers, and Hamburgers.\n\nAll kids meals include your choice of ONE side, and we can substitute pretty much any standard side upon request!"
+    },
+    {
+      "id": "kids-sides",
+      "q": "What sides come with a kids meal?",
+      "includes": [
+        "kids sides",
+        "kid sides",
+        "kids meal sides",
+        "kids menu sides",
+        "sides for kids",
+        "side for kids",
+        "side options",
+        "what sides come with that",
+        "what sides come with",
+        "what comes with kids",
+        "kids meal come with"
+      ],
+      "type": "kids-sides",
+      "answer": "Yes! We offer a dedicated Kids Menu featuring Kids Fish Sticks, Fried Shrimp, Chicken Strips, Cheeseburgers, and Hamburgers.\n\nAll kids meals include your choice of ONE side, and we can substitute pretty much any standard side upon request!\n\nKids sides are Broccoli, Virginia's Apple Cider Coleslaw, Corn on the Cob, White Rice, Hush Puppies, or Fries."
     },
     {
       "id": "lunch",

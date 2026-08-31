@@ -1,28 +1,57 @@
 /**
- * Guest language: default English. Switch when the guest greets/writes in Spanish or English.
+ * Guest language: default English.
+ * Southern/Texas slang stays English. Spanish only when the guest uses clear Spanish.
  */
 
-const SPANISH_WORDS =
-  /\b(hola|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|por\s+favor|quiero|quisiera|quisi[eé]ramos|necesito|necesitamos|tienen|tiene|hacen|puedo|podemos|cu[aá]nto|cu[aá]ntos|d[oó]nde|horario|horarios|reservaci[oó]n|reservar|mesa\s+para|para\s+llevar|alergia|al[eé]rgico|al[eé]rgica|sin\s+gluten|ni[nñ]os?|niñas?|adultos?|hoy|ma[nñ]ana|esta\s+noche|espa[nñ]ol|men[uú]|especiales|cu[aá]l|cu[aá]les|est[aá]n|abiertos?|cerrados?|abierto|cerrado|restaurante|direcci[oó]n|tel[eé]fono|favor|ayudame|ay[uú]dame|hay|cu[aá]nto\s+cuesta|podr[ií]an|podria|me\s+gustar[ií]a|una\s+mesa|confirmar|cancelar|freidora|empanizado|personas|opciones)\b/i;
+const TEXAS_ENGLISH_SLANG =
+  /\b(y['’]?all|ya['’]?ll|yawl|all\s+y['’]?all|howdy|fixin['’]?\s+to|ain['’]?t)\b/i;
+
+/** Clear Spanish — not English slang, not shared words like "menu". */
+const CLEAR_SPANISH =
+  /\b(hola|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|por\s+favor|quiero|quisiera|quisi[eé]ramos|necesito|necesitamos|tienen|tiene|hacen|puedo|podemos|cu[aá]nto|cu[aá]ntos|d[oó]nde|horario|horarios|reservaci[oó]n|reservar|mesa\s+para|para\s+llevar|alergia|al[eé]rgico|al[eé]rgica|sin\s+gluten|ni[nñ]os?|niñas?|adultos?|hoy|ma[nñ]ana|esta\s+noche|espa[nñ]ol|especiales|cu[aá]l|cu[aá]les|abiertos?|cerrados?|abierto|cerrado|restaurante|direcci[oó]n|tel[eé]fono|ayudame|ay[uú]dame|cu[aá]nto\s+cuesta|podr[ií]an|me\s+gustar[ií]a|una\s+mesa|confirmar|cancelar|freidora|empanizado|personas|menú|a\s+qu[eé]\s+hora|qu[eé]\s+tal|saludos)\b/i;
+
+const CLEAR_SPANISH_PHRASES =
+  /\b(a\s+qu[eé]\s+hora|por\s+favor|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|para\s+llevar|mesa\s+para|est[aá]n\s+abiertos?|est[aá]\s+abierto)\b/i;
 
 const ENGLISH_WORDS =
-  /\b(hello|hey|hi|thanks|please|want|need|have|do you|can i|how much|where|hours|reservation|table for|to[- ]?go|allergy|allergic|gluten|kids?|adults?|today|tomorrow|menu|specials|open|closed|address|phone|booth|patio)\b/i;
+  /\b(hello|hey|hi|thanks|please|want|need|have|do you|can i|how much|where|hours|reservation|table for|to[- ]?go|allergy|allergic|gluten|kids?|adults?|today|tomorrow|menu|specials|open|closed|address|phone|booth|patio|y['’]?all|ya['’]?ll|howdy)\b/i;
 
 const ES_GREETING_RE =
   /^(hola|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|qu[eé]\s+tal|saludos)([,!.\s]|$)/i;
 const EN_GREETING_RE =
-  /^(hi|hey|hello|yo|good\s+(morning|afternoon|evening)|howdy)([,!.\s]|$)/i;
+  /^(hi|hey|hello|yo|good\s+(morning|afternoon|evening)|howdy|y['’]?all)([,!.\s]|$)/i;
 const PURE_ES_GREETING_RE =
   /^(hola|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|qu[eé]\s+tal|saludos)([.!?]*)?$/i;
 const PURE_EN_GREETING_RE =
-  /^(hi|hey|hello|yo|good\s+(morning|afternoon|evening)|howdy)([.!?]*)?$/i;
+  /^(hi|hey|hello|yo|good\s+(morning|afternoon|evening)|howdy|y['’]?all|ya['’]?ll)([.!?]*)?$/i;
+
+function normalizeApostrophes(text) {
+  return String(text || "").replace(/[\u2018\u2019\u02BC]/g, "'");
+}
 
 /** Normalize guest text (strip smart quotes / zero-width chars). */
 export function cleanGuestText(text) {
-  return String(text || "")
+  return normalizeApostrophes(String(text || ""))
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .replace(/^[“”"'\s]+|[“”"'\s]+$/g, "")
     .trim();
+}
+
+export function isTexasEnglishSlang(text) {
+  return TEXAS_ENGLISH_SLANG.test(cleanGuestText(text));
+}
+
+/** True only for clear Spanish vocabulary / phrasing / punctuation — not slang. */
+export function hasClearSpanish(text) {
+  const t = cleanGuestText(text);
+  if (!t) return false;
+  if (/[¿¡]/.test(t)) return true;
+  if (CLEAR_SPANISH_PHRASES.test(t)) return true;
+  if (ES_GREETING_RE.test(t) || PURE_ES_GREETING_RE.test(t)) return true;
+  if (CLEAR_SPANISH.test(t)) return true;
+  // Accented Spanish letters plus a Spanish function word (not "menu" / slang)
+  if (/[áéíóúñü]/i.test(t) && CLEAR_SPANISH.test(t)) return true;
+  return false;
 }
 
 /** Pure greeting only (no follow-up question) — used for instant welcome replies. */
@@ -31,7 +60,7 @@ export function isPureGreeting(text) {
   return PURE_ES_GREETING_RE.test(t) || PURE_EN_GREETING_RE.test(t);
 }
 
-/** Language signaled by the greeting itself (hola → es, hi → en). */
+/** Language signaled by the greeting itself (hola → es, hi/howdy/y'all → en). */
 export function greetingLanguage(text) {
   const t = cleanGuestText(text);
   if (PURE_ES_GREETING_RE.test(t) || ES_GREETING_RE.test(t)) return "es";
@@ -43,48 +72,57 @@ export function detectMessageLanguage(text) {
   const t = cleanGuestText(text);
   if (!t) return null;
 
-  // Greetings always set language (hola / hi), even when more text follows
+  const slang = isTexasEnglishSlang(t);
+  const spanish = hasClearSpanish(t);
+
+  // Informal English / Texas slang must never flip the bot to Spanish.
+  if (slang && !spanish) return "en";
+
+  // Greetings always set language (hola / hi / howdy), even when more text follows
   const greetLang = greetingLanguage(t);
   if (isPureGreeting(t) && greetLang) return greetLang;
-  if (greetLang === "es" && ES_GREETING_RE.test(t)) {
-    // "Hola, …" — treat as Spanish unless the rest is clearly English-only
+  if (greetLang === "es" && ES_GREETING_RE.test(t) && spanish) {
     if (!ENGLISH_WORDS.test(t.replace(ES_GREETING_RE, ""))) return "es";
   }
-  if (greetLang === "en" && EN_GREETING_RE.test(t)) {
-    if (!SPANISH_WORDS.test(t.replace(EN_GREETING_RE, ""))) return "en";
+  if (greetLang === "en" && EN_GREETING_RE.test(t) && !spanish) {
+    return "en";
   }
 
   let es = 0;
   let en = 0;
 
-  if (/[áéíóúñü¿¡]/i.test(t)) es += 2;
-  if (SPANISH_WORDS.test(t)) es += 3;
-  if (/\b(qué|que|cómo|como|cuándo|cuando|dónde|donde|por qu[eé])\b/i.test(t)) {
-    es += 1;
-  }
+  if (spanish) es += 4;
   if (/[¿¡]/.test(t)) es += 2;
+  if (CLEAR_SPANISH_PHRASES.test(t)) es += 2;
 
   if (ENGLISH_WORDS.test(t)) en += 2;
-  if (/\b(i'|i’m|i am|we'|we're|do you|can you|what'?s)\b/i.test(t)) en += 2;
+  if (slang) en += 4;
+  if (/\b(i'|i’m|i am|we'|we're|do you|can you|what'?s|y['’]?all)\b/i.test(t)) {
+    en += 2;
+  }
+
+  if (!spanish) {
+    if (en >= 1) return "en";
+    return null;
+  }
 
   if (es >= 2 && es > en) return "es";
   if (en >= 2 && en > es) return "en";
   if (es > en) return "es";
   if (en > es) return "en";
-  return null;
+  return spanish ? "es" : null;
 }
 
 /**
  * Resolve language for this turn from the guest's message.
- * Greeting or clear Spanish/English content switches the chat language.
+ * Only Spanish with clear Spanish vocab/phrasing; slang stays English.
  */
 export function resolveGuestLanguage(chatId, text, { getLang, setLang }) {
   const detected = detectMessageLanguage(text);
   const prev = getLang(chatId) || "en";
 
   if (detected === "es" || detected === "en") {
-    if (prev !== detected) setLang(chatId, detected);
-    else setLang(chatId, detected); // keep sticky explicit
+    setLang(chatId, detected);
     return detected;
   }
   return prev;
@@ -93,19 +131,20 @@ export function resolveGuestLanguage(chatId, text, { getLang, setLang }) {
 export function languagePromptBlock(language) {
   if (language === "es") {
     return `
-LANGUAGE (ACTIVE — guest greeted or is speaking Spanish):
+LANGUAGE (ACTIVE — guest is speaking Spanish):
 - Reply entirely in natural, friendly Spanish (Mexican / US Southwest restaurant style is fine).
 - Keep dish names, brand names, URLs, prices, and phone numbers as written in the knowledge.
 - Allergy / shared-fryer safety: if allergies or fryers come up, weave this ONCE into the menu section (never a standalone line at the end):
   "Por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada."
 - Parties of 8+ or “hablar con gerencia/manager/dueño”: alert managers internally, then tell the guest — "Para reservaciones de grupo de este tamaño (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager." Answer safe questions (horario, patio, sides) in the same reply. Never send MANAGER ALERT text or tell them to call the store while already on the line.
-- If the guest later greets in English (hi/hey/hello), switch fully to English.
+- If the guest later greets in English (hi/hey/hello/howdy/y'all) or uses Texas slang without Spanish, switch fully to English.
 `;
   }
   return `
-LANGUAGE (ACTIVE — guest greeted or is speaking English):
+LANGUAGE (ACTIVE — English, including Southern/Texas slang):
 - Reply in English.
-- If the guest greets in Spanish (hola / buenos días / etc.) or writes in Spanish, switch fully to Spanish for that reply and following turns until they greet/write in English again.
+- Treat y'all, ya'll, yall, howdy, all y'all, and similar colloquialisms as English. Never switch to Spanish because of slang.
+- ONLY switch to Spanish if the guest uses clear Spanish vocabulary or phrasing (hola, gracias, abierto, ¿a qué hora?, etc.).
 `;
 }
 

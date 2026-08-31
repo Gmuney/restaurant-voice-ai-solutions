@@ -13,6 +13,8 @@ import {
   asksHours,
   hoursReplyLanguage,
   asksHappyHour,
+  asksKidsMeal,
+  kidsMealReply,
   answerPastSpecialOrCustomMod,
   isLargeOnlineParty,
   MAX_ONLINE_PARTY,
@@ -1344,6 +1346,16 @@ bot.on("message", async (msg) => {
       return;
     }
 
+    // Kids menu: exactly ONE side; don't volunteer 86'd sides
+    if (asksKidsMeal(msg.text) && !needsManagerEscalation(msg.text)) {
+      const kidsReply = kidsMealReply(msg.text, lang);
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: kidsReply });
+      console.log(`[TG] KIDS meal/sides intent → ${lang}`);
+      await bot.sendMessage(chatId, kidsReply.slice(0, 4000));
+      return;
+    }
+
     if (await handleReservationSession(msg)) return;
     if (await handleOrderSession(msg)) return;
     if (await handleCancelChange(msg)) return;
@@ -1489,7 +1501,7 @@ bot.on("message", async (msg) => {
     // FAQ fallback if Gemini is unavailable.
     // generateAiReply already stored the user turn when it attempted AI.
     let reply = generateReply(msg.text, { language: lang });
-    if (getSoldOut().items.length && /\b(menu|men[uú])\b/i.test(msg.text)) {
+    if (getSoldOut().items.length && /\b(menu|men[uú])\b/i.test(msg.text) && !asksKidsMeal(msg.text)) {
       reply += `\n\nCurrently 86'd today: ${getSoldOut()
         .items.map((i) => i.name)
         .join(", ")}`;
