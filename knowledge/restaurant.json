@@ -88,8 +88,8 @@
     "summary": "Yes — we take reservations (including via OpenTable). You can request one in this chat, book online, or call (210) 455-3474.",
     "walkIns": "Walk-ins are welcome. Waits can happen when we're busy — reservations are the safest bet for a preferred time.",
     "largeParty": "NEED_MANAGER_CONFIRM",
-    "largePartyAnswer": "For group reservations of this size (or to speak with management), I am alerting our team right now. Please stay on the line while I connect you to a manager.",
-    "largePartyAnswerEs": "Para reservaciones de grupo de este tamaño (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager.",
+    "largePartyAnswer": "I am alerting our management team right now. Please stay on the line while I connect you to a manager.",
+    "largePartyAnswerEs": "Estoy alertando a nuestro equipo de gerencia ahora mismo. Por favor quédate en la línea mientras te conecto con un manager.",
     "kids": "Families are welcome. Ask your server about kid-friendly options.",
     "highChairs": "High chairs / booster seats are typically available — ask when you arrive or note it on your reservation request.",
     "splitChecks": "We can usually split checks — let your server know early in the meal.",
@@ -97,8 +97,8 @@
     "corkageAnswer": "Ask a manager about corkage / bringing your own bottle — call (210) 455-3474.",
     "cake": "You're welcome to ask about bringing a celebration cake — call ahead so we can plan with you: (210) 455-3474.",
     "giftCards": "Gift cards are available: https://fishcitygrill.cardfoundry.com/",
-    "managerEscalation": "For group reservations of this size (or to speak with management), I am alerting our team right now. Please stay on the line while I connect you to a manager.",
-    "managerEscalationEs": "Para reservaciones de grupo de este tamaño (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager."
+    "managerEscalation": "To speak with management, I am alerting our team right now. Please stay on the line while I connect you to a manager.",
+    "managerEscalationEs": "Para hablar con gerencia, estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager."
   },
   "takeout": {
     "summary": "To-go / takeout is available. Place an order in this chat, call (210) 455-3474, or order online."
@@ -110,8 +110,8 @@
     "summary": "If you need accessibility details (wheelchair access, seating, etc.), call us at (210) 455-3474 and we'll help you plan."
   },
   "pets": {
-    "summary": "NEED_MANAGER_CONFIRM",
-    "answer": "Pet / patio pet policy can vary — please call (210) 455-3474 to confirm before you visit with a pet."
+    "summary": "Yes — our patio is dog-friendly. Service animals are welcome.",
+    "answer": "Yes, our patio is dog-friendly! Service animals are welcome indoors as well."
   },
   "outdoor": {
     "summary": "NEED_MANAGER_CONFIRM",

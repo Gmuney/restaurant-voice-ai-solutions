@@ -9,6 +9,9 @@ import {
   composeEscalationReply,
   needsManagerEscalation,
   happyHourAnswer,
+  hoursAnswer,
+  asksHours,
+  hoursReplyLanguage,
   asksHappyHour,
   answerPastSpecialOrCustomMod,
   isLargeOnlineParty,
@@ -842,37 +845,32 @@ async function transferLargeParty(msg, n) {
 }
 
 /**
- * Telegram Manager Alert — internal only (managers get the 🚨 block).
- * Guest chat gets a clean dual-action reply with no alert banners or call-store prompts.
+ * Dual-intent manager transfer — one guest message only:
+ * 1. [Standard answer] (menu/allergen + safety)
+ * 2. [Handoff stay-on-the-line line]
+ * 3. 🚨 PHONE RINGING: Transferring guest to Manager... (VERY END)
+ * No separate standalone PHONE RINGING message before the reply.
  */
 async function escalateToManagers(msg, meta = {}) {
   const chatId = msg.chat.id;
   const lang = getChatLang(chatId) || "en";
   const partySize =
     meta.partySize ?? extractPartySize(msg.text) ?? null;
-  const reason = meta.reason || (partySize ? "large_party" : "manager_request");
-
-  // INTERNAL ONLY — never forward this block to the guest chat
-  const alert = [
-    `🚨 MANAGER ALERT — ${reason === "manager_request" ? "guest asked for manager/owner" : `party of ${partySize || "8+"}`}`,
-    `Guest: ${displayName(msg)} (chat ${chatId})`,
-    partySize != null ? `Party size: ${partySize}` : null,
-    `Message: "${msg.text}"`,
-    `Action: Join/take over this chat or call the guest back.`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-  await notifyManagers(alert);
 
   setSession(chatId, null);
-  const reply = composeEscalationReply(msg.text, { language: lang });
-  // Safety: never leak alert banners into guest chat
-  if (/MANAGER ALERT|🚨/.test(reply)) {
-    console.error("[escalate] blocked internal alert text from guest reply");
-  }
+  const reply = composeEscalationReply(msg.text, {
+    language: lang,
+    partySize,
+  });
   appendChatMessage(chatId, { role: "user", content: msg.text });
   appendChatMessage(chatId, { role: "model", content: reply });
   await bot.sendMessage(chatId, reply.slice(0, 4000));
+
+  // Managers get the same single transfer block once (not a prior standalone ringing ping)
+  const managerIds = listManagerIds().map(String);
+  if (!managerIds.includes(String(chatId))) {
+    await notifyManagers(reply.slice(0, 4000));
+  }
   return true;
 }
 
@@ -1006,6 +1004,97 @@ async function startOrderWizard(chatId) {
       ? ES.orderStart(restaurant.orderOnlineUrl)
       : `To-go order — name for the order?\n(Or order online: ${restaurant.orderOnlineUrl})\nType cancel to stop.`
   );
+}
+
+const RESET_ACK =
+  "Entendido / Got it — conversation reset. How can Fish City Grill help you?";
+
+/** Explicit end/reset commands. */
+function isExplicitReset(text) {
+  return /^(end|reset|restart|start over|stop|cancel|nevermind|reiniciar|terminar|fin|olvidalo|olvídalo|cancelar todo)([.!?]*)?$/i.test(
+    String(text || "").trim()
+  );
+}
+
+/**
+ * While a wizard is open, a new generic Q (hours/menu/etc.) that isn't answering
+ * the current step abandons the uncompleted flow.
+ */
+function isUnrelatedGenericDuringFlow(text, session) {
+  if (!session?.type) return false;
+  const t = String(text || "").trim();
+  if (!t) return false;
+
+  // Still answering the wizard — keep the flow
+  if (session.type === "reservation") {
+    const step = session.step;
+    if (step === "adults_kids" && parseAdultsKids(t)) return false;
+    if (step === "seating" && parseSeatingChoice(t)) return false;
+    if (step === "date" && /^(today|tomorrow|hoy|ma[nñ]ana|\d{1,2}\/\d{1,2}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)/i.test(t))
+      return false;
+    if (step === "time" && /\d{1,2}(:\d{2})?\s*(a\.?m\.?|p\.?m\.?)?|\b(noon|midnight|mediod[ií]a)\b/i.test(t))
+      return false;
+    if (step === "name" && t.length <= 60 && !/\?/.test(t) && !isGenericTopicQuestion(t))
+      return false;
+  }
+  if (session.type === "order") {
+    // Short answers for name/phone/pickup/items/notes are expected
+    if (!isGenericTopicQuestion(t) && t.length < 120 && !/\?/.test(t)) return false;
+  }
+  if (session.type === "restock") {
+    if (/^(y|yes|yeah|yep|sure|ok|okay|n|no|nah|skip|none)$/i.test(t)) return false;
+    if (session.step === "qty" || session.step === "notes") {
+      if (!isGenericTopicQuestion(t) && !/\?/.test(t)) return false;
+    }
+  }
+
+  return isGenericTopicQuestion(t) || isPureGreeting(t);
+}
+
+function isGenericTopicQuestion(text) {
+  const t = String(text || "");
+  return (
+    /\b(hours?|open|closed|horario|menu|specials?|parking|happy\s*hour|allerg|gluten|dairy|patio|address|direcci[oó]n|phone|tel[eé]fono|what time|do you (have|serve)|tienen|estacionamiento|especiales)\b/i.test(
+      t
+    ) ||
+    /\?/.test(t) ||
+    isPureGreeting(t)
+  );
+}
+
+async function resetGuestConversation(chatId, msg) {
+  setSession(chatId, null);
+  clearChatMessages(chatId);
+  appendChatMessage(chatId, { role: "user", content: msg?.text || "reset" });
+  appendChatMessage(chatId, { role: "model", content: RESET_ACK });
+  await bot.sendMessage(chatId, RESET_ACK);
+  console.log(`[TG] conversation reset for chat ${chatId}`);
+  return true;
+}
+
+async function handleSessionReset(msg) {
+  const chatId = msg.chat.id;
+  const text = String(msg.text || "").trim();
+  const session = getSession(chatId);
+
+  // Hours intent must bypass reset ack and hit the HOURS handler
+  if (asksHours(text)) return false;
+
+  if (isExplicitReset(text)) {
+    await resetGuestConversation(chatId, msg);
+    return true;
+  }
+
+  if (
+    session &&
+    ["reservation", "order", "restock"].includes(session.type) &&
+    isUnrelatedGenericDuringFlow(text, session)
+  ) {
+    await resetGuestConversation(chatId, msg);
+    return true;
+  }
+
+  return false;
 }
 
 async function handleReservationSession(msg) {
@@ -1233,11 +1322,27 @@ bot.on("message", async (msg) => {
   console.log(`[TG] ${displayName(msg)} [${lang}]: ${msg.text}`);
 
   try {
+    // State reset: "end" / "reset" or abandon incomplete flow with a new generic question
+    if (await handleSessionReset(msg)) return;
+
     // Restock follow-up after 86 (YES/NO → qty → notes)
     if (await handleRestockSession(msg)) return;
 
     // Manager inventory: "86 redfish" / "un86 redfish" / "86 list" (no slash needed)
     if (await handlePlain86(msg)) return;
+
+    // Spanish/English HOURS intent — bypass wizards, multipart, AI, and help/options menu
+    if (asksHours(msg.text) && !needsManagerEscalation(msg.text)) {
+      setSession(chatId, null);
+      const hoursLang = hoursReplyLanguage(msg.text, lang);
+      setChatLang(chatId, hoursLang);
+      const hoursReply = hoursAnswer(hoursLang);
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: hoursReply });
+      console.log(`[TG] HOURS intent → ${hoursLang}`);
+      await bot.sendMessage(chatId, hoursReply.slice(0, 4000));
+      return;
+    }
 
     if (await handleReservationSession(msg)) return;
     if (await handleOrderSession(msg)) return;

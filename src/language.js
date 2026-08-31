@@ -3,7 +3,7 @@
  */
 
 const SPANISH_WORDS =
-  /\b(hola|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|por\s+favor|quiero|quisiera|quisi[eé]ramos|necesito|necesitamos|tienen|tiene|hacen|puedo|podemos|cu[aá]nto|cu[aá]ntos|d[oó]nde|horario|horarios|reservaci[oó]n|reservar|mesa\s+para|para\s+llevar|alergia|al[eé]rgico|al[eé]rgica|sin\s+gluten|ni[nñ]os?|niñas?|adultos?|hoy|ma[nñ]ana|esta\s+noche|espa[nñ]ol|men[uú]|especiales|cu[aá]l|cu[aá]les|est[aá]n|abiertos?|cerrados?|direcci[oó]n|tel[eé]fono|favor|ayudame|ay[uú]dame|hay|cu[aá]nto\s+cuesta|podr[ií]an|podria|me\s+gustar[ií]a|una\s+mesa|confirmar|cancelar|freidora|empanizado|personas|opciones)\b/i;
+  /\b(hola|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|por\s+favor|quiero|quisiera|quisi[eé]ramos|necesito|necesitamos|tienen|tiene|hacen|puedo|podemos|cu[aá]nto|cu[aá]ntos|d[oó]nde|horario|horarios|reservaci[oó]n|reservar|mesa\s+para|para\s+llevar|alergia|al[eé]rgico|al[eé]rgica|sin\s+gluten|ni[nñ]os?|niñas?|adultos?|hoy|ma[nñ]ana|esta\s+noche|espa[nñ]ol|men[uú]|especiales|cu[aá]l|cu[aá]les|est[aá]n|abiertos?|cerrados?|abierto|cerrado|restaurante|direcci[oó]n|tel[eé]fono|favor|ayudame|ay[uú]dame|hay|cu[aá]nto\s+cuesta|podr[ií]an|podria|me\s+gustar[ií]a|una\s+mesa|confirmar|cancelar|freidora|empanizado|personas|opciones)\b/i;
 
 const ENGLISH_WORDS =
   /\b(hello|hey|hi|thanks|please|want|need|have|do you|can i|how much|where|hours|reservation|table for|to[- ]?go|allergy|allergic|gluten|kids?|adults?|today|tomorrow|menu|specials|open|closed|address|phone|booth|patio)\b/i;

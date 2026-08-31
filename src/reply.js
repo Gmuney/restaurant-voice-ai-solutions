@@ -81,31 +81,123 @@ function isOpenNow() {
   return { open: minutes >= open && minutes < close, day, hours };
 }
 
-function hoursAnswer() {
+function foldForMatch(text) {
+  return String(text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/** True for direct HOURS / open-now questions in EN or ES (typos/accents OK). */
+function asksHours(text) {
+  const t = foldForMatch(text);
+  // Happy Hour alone is not restaurant hours
+  if (
+    /\b(happy\s*hour|hh)\b/.test(t) &&
+    !/\b(horario|hours|abierto|cerrado|open|closed)\b/.test(t)
+  ) {
+    return false;
+  }
+
+  const en =
+    /\b(what (are )?your hours|your hours|hours of operation|operating hours|store hours|restaurant hours)\b/.test(
+      t
+    ) ||
+    /\b(is the restaurant open|is restaurant open|restaurant open|are you (guys |yall )?open|are yall open|yall open|you open|open right now|open now|open rn|still open|are we open)\b/.test(
+      t
+    ) ||
+    /\b(when do you (open|close)|what time do you (open|close)|closing time|opening time)\b/.test(
+      t
+    ) ||
+    /^(hours)\b/.test(t.trim());
+
+  // Spanish + informal / missing accents: "esta abierto", "a que hora cierran", "horario"
+  const es =
+    /\b(horario|horarios)\b/.test(t) ||
+    /\b(a que hora (abren|cierran)|que hora (abren|cierran)|hora de (apertura|cierre)|cuando (abren|cierran))\b/.test(
+      t
+    ) ||
+    /\b(esta|estan|este|el)?\s*(el )?restaurante\s+(esta\s+)?(abierto|cerrado)\b/.test(
+      t
+    ) ||
+    /\b(esta|estan)\s+(abierto|abiertos|cerrado|cerrados)\b/.test(t) ||
+    /\b(abiertos?|cerrados?)\b/.test(t) ||
+    /\b(abren|cierran)\b/.test(t) ||
+    /\b(abiertos? ahora|cerrados? ahora)\b/.test(t) ||
+    /^(horario|horarios|abierto|abiertos|cerrado|cerrados)\b/.test(t.trim());
+
+  return en || es;
+}
+
+/** Prefer the language of this hours question over sticky chat language. */
+function hoursReplyLanguage(text, fallback = "en") {
+  const t = foldForMatch(text);
+  const esCue =
+    /\b(horario|horarios|abierto|abiertos|cerrado|cerrados|restaurante|a que hora|que hora abren|que hora cierran|estan|esta|hola|buenas)\b/.test(
+      t
+    );
+  const enCue =
+    /\b(hours|open|closed|restaurant open|are you|is the|what time|what are)\b/.test(
+      t
+    );
+  if (esCue && !enCue) return "es";
+  if (enCue && !esCue) return "en";
+  if (esCue) return "es";
+  return fallback === "es" ? "es" : "en";
+}
+
+/**
+ * Direct HOURS reply — match guest language; Spanish uses warm fixed schedule template.
+ */
+function hoursAnswer(lang = "en", opts = {}) {
   const status = isOpenNow();
-  const openLine = status.open
-    ? `We're OPEN now (${status.day}).`
+  const withHints = opts.withHints === true;
+
+  if (lang === "es") {
+    // Required warm Spanish hours template (no help/options menu, no English mix)
+    if (status.open) {
+      return "¡Hola! Sí, estamos ABIERTOS hoy. Nuestro horario es de domingo a jueves de 11:00 AM a 9:00 PM, y viernes y sábado de 11:00 AM a 10:00 PM.";
+    }
+    return "¡Hola! Ahora mismo estamos CERRADOS. Nuestro horario es de domingo a jueves de 11:00 AM a 9:00 PM, y viernes y sábado de 11:00 AM a 10:00 PM.";
+  }
+
+  const display = restaurant.hours.display;
+  const statusLine = status.open
+    ? `We're OPEN right now (${status.day}).`
     : `We're CLOSED right now (${status.day}).`;
-  return `${openLine} Hours: ${restaurant.hours.display} Phone: ${restaurant.phone}`;
+  let out = `Our hours are ${display}. ${statusLine}`;
+  if (withHints) {
+    out += ` I can also help with the menu or a reservation if you need.`;
+  }
+  return out;
 }
 
 function largePartyAnswer(partySize = null, lang = "en") {
-  return managerEscalationLine(lang);
+  return managerEscalationLine(lang, partySize);
 }
 
-function managerEscalationLine(lang = "en") {
-  // Guest-facing only — never include phones, alert banners, or internal log text
+function managerEscalationLine(lang = "en", partySize = null) {
+  // Guest handoff — no phones / call-the-store prompts
+  const n = partySize != null && Number(partySize) >= 1 ? Number(partySize) : null;
   if (lang === "es") {
+    if (n) {
+      return `Para un evento de grupo de ${n} personas (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager.`;
+    }
     return (
       restaurant.reservations?.managerEscalationEs ||
-      "Para reservaciones de grupo de este tamaño (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager."
+      "Para hablar con gerencia, estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager."
     );
+  }
+  if (n) {
+    return `For a group event of ${n} guests (or to speak with management), I am alerting our team right now. Please stay on the line while I connect you to a manager.`;
   }
   return (
     restaurant.reservations?.managerEscalation ||
-    "For group reservations of this size (or to speak with management), I am alerting our team right now. Please stay on the line while I connect you to a manager."
+    "To speak with management, I am alerting our team right now. Please stay on the line while I connect you to a manager."
   );
 }
+
+const SIM_PHONE_RINGING = "🚨 PHONE RINGING: Transferring guest to Manager...";
 
 function asksManagerEscalation(text) {
   const t = String(text || "");
@@ -123,8 +215,87 @@ function asksManagerEscalation(text) {
   );
 }
 
+function asksCateringEscalation(text) {
+  return /\b(cater|catering|catered|banquet|private event|evento privado|banquete)\b/i.test(
+    text
+  );
+}
+
 function needsManagerEscalation(text) {
-  return isLargeOnlineParty(extractPartySize(text)) || asksManagerEscalation(text);
+  return (
+    isLargeOnlineParty(extractPartySize(text)) ||
+    asksManagerEscalation(text) ||
+    asksCateringEscalation(text)
+  );
+}
+
+/** Concise 1–2 sentence answers for safe general/menu questions (before transfer). */
+function standardEscalationAnswers(text, lang = "en") {
+  const bits = [];
+  const asksDog = /\b(dog|dogs|pet|pets|perro|perros|mascota)\b/i.test(text);
+  const asksPatio =
+    /\b(patio|outdoor|outside seating|terraza|dog-friendly|dog friendly)\b/i.test(
+      text
+    );
+
+  if (asksDog) {
+    bits.push(
+      lang === "es"
+        ? "¡Sí, nuestro patio es dog-friendly!"
+        : "Yes, our patio is dog-friendly!"
+    );
+  } else if (asksPatio) {
+    bits.push(
+      lang === "es"
+        ? "Sí — podemos anotar preferencia de patio; la disponibilidad cambia con el clima y la demanda."
+        : "Yes — we can note a patio preference; availability can change with weather and demand."
+    );
+  }
+
+  if (asksGluten(text) || asksFryerCrossContact(text)) {
+    bits.push(glutenFryerAnswer(lang));
+  } else if (/\b(dairy|lactose|dairy[- ]?free|sin l[aá]cteos|lactosa)\b/i.test(text)) {
+    bits.push(
+      lang === "es"
+        ? `Varios platos se pueden ajustar sin lácteos — avisa a tu mesero de tus necesidades de dairy/lactosa. ${ALLERGY_DISCLAIMER_ES}`
+        : `Many dishes can be adjusted dairy-free — tell your server about dairy or lactose needs when you order. ${ALLERGY_DISCLAIMER}`
+    );
+  } else if (/\b(shellfish|mariscos)\b/i.test(text)) {
+    bits.push(
+      lang === "es"
+        ? `${restaurant.allergies?.shellfish || "Los mariscos tocan gran parte de la cocina."} ${ALLERGY_DISCLAIMER_ES}`
+        : `${restaurant.allergies?.shellfish || "Shellfish touches most of our kitchen."} ${ALLERGY_DISCLAIMER}`
+    );
+  } else if (/\b(allerg|nut allergy|alergia)\b/i.test(text)) {
+    bits.push(
+      lang === "es"
+        ? `Podemos ayudarte con alergias — avisa a tu mesero al llegar. ${ALLERGY_DISCLAIMER_ES}`
+        : `We can help with allergy concerns — tell your server when you arrive. ${ALLERGY_DISCLAIMER}`
+    );
+  }
+  if (asksHours(text)) {
+    bits.push(hoursAnswer(lang));
+  }
+  if (asksParking(text)) bits.push(parkingAnswer(lang));
+  if (asksHappyHour(text)) {
+    bits.push(
+      lang === "es"
+        ? `Happy Hour es ${happyHour.days || "domingo–viernes"}, ${happyHour.hours || "3–6pm"} (menú HH separado del pizarrón).`
+        : `Happy Hour is ${happyHour.days || "Sunday–Friday"}, ${happyHour.hours || "3–6pm"} (separate from chalkboard specials).`
+    );
+  }
+  if (isSideSwap(text)) bits.push(sideSwapAnswer(lang));
+  if (asksCateringEscalation(text) && !isLargeOnlineParty(extractPartySize(text))) {
+    // Brief catering confirm before transfer — no phone/call prompt
+    bits.push(
+      lang === "es"
+        ? "Sí — ofrecemos catering y eventos de grupo."
+        : "Yes — we offer catering and group events."
+    );
+  }
+
+  // Cap at 2 concise sentences/parts for the “standard query” block
+  return bits.filter(Boolean).slice(0, 2);
 }
 
 function hasAllergyDisclaimer(text) {
@@ -250,7 +421,7 @@ function findAllFaq(lower) {
 
 function resolveAnswer(item, lang = "en") {
   let answer;
-  if (item.type === "hours") answer = hoursAnswer();
+  if (item.type === "hours") answer = hoursAnswer(lang);
   else if (item.type === "happy-hour" || item.id === "happy-hour" || item.id === "hh-food")
     answer = happyHourAnswer(lang);
   else if (
@@ -426,53 +597,43 @@ function partyBookingAnswer(partySize, text, lang = "en") {
 }
 
 /**
- * Dual-action escalation reply (GUEST chat only):
- * 1) Answer safe standard bits (hours, patio, sides, parking, HH)
- * 2) Smooth handoff line — no phones, no call-the-store, no internal alert text
+ * Dual-intent escalation — single reply block (no prior standalone alert message):
+ * 1. [Standard Query Answer] (menu/allergen + safety)
+ * 2. For a group event of [party size] (or to speak with management), ...
+ * 3. 🚨 PHONE RINGING: Transferring guest to Manager...  (VERY END)
  */
 function composeEscalationReply(rawMessage, opts = {}) {
   const lang = opts.language === "es" ? "es" : "en";
   const text = String(rawMessage || "").trim();
-  const parts = [];
+  const partySize = opts.partySize ?? extractPartySize(text);
 
-  if (
-    /\b(hours?|open|closed|horario|horarios|abiertos?|cerrados?)\b/i.test(text)
-  ) {
-    // Hours for guests on an active handoff — no phone (they're already on the line)
-    const status = isOpenNow();
-    const openLine = status.open
-      ? lang === "es"
-        ? `Estamos ABIERTOS ahora (${status.day}).`
-        : `We're OPEN now (${status.day}).`
-      : lang === "es"
-        ? `Estamos CERRADOS ahora (${status.day}).`
-        : `We're CLOSED right now (${status.day}).`;
-    parts.push(
-      `${openLine} ${lang === "es" ? "Horario" : "Hours"}: ${restaurant.hours.display}`
-    );
-  }
-  if (asksParking(text)) parts.push(parkingAnswer(lang));
-  if (asksHappyHour(text)) parts.push(happyHourAnswer(lang));
-  if (isSideSwap(text)) parts.push(sideSwapAnswer(lang));
-  if (/\b(patio|outdoor|outside seating|terraza)\b/i.test(text)) {
-    parts.push(
-      lang === "es"
-        ? "Sí — podemos anotar preferencia de patio / terraza; la disponibilidad cambia con el clima y la demanda."
-        : "Yes — we can note a patio preference; availability can change with weather and demand."
-    );
+  const standard = standardEscalationAnswers(text, lang);
+  const handoff = managerEscalationLine(lang, partySize);
+
+  const blocks = [];
+  if (standard.length) blocks.push(standard.join(" "));
+  blocks.push(handoff);
+  blocks.push(SIM_PHONE_RINGING);
+
+  let out = blocks.join("\n");
+  // Ensure PHONE RINGING appears only once, and only at the very end
+  const firstRing = out.indexOf(SIM_PHONE_RINGING);
+  if (firstRing !== -1) {
+    const withoutDupes =
+      out.slice(0, firstRing) +
+      out.slice(firstRing + SIM_PHONE_RINGING.length).replaceAll(SIM_PHONE_RINGING, "");
+    out = `${withoutDupes.replace(/\n+$/, "").trim()}\n${SIM_PHONE_RINGING}`;
   }
 
-  parts.push(managerEscalationLine(lang));
   return sanitizeGuestEscalationReply(
-    ensureSingleAllergyDisclaimer(parts.filter(Boolean).join("\n\n"), lang)
+    ensureSingleAllergyDisclaimer(out.replace(/\n{3,}/g, "\n").trim(), lang)
   );
 }
 
-/** Strip internal alert banners / store call prompts from guest-facing escalation text. */
+/** Strip call-store prompts / leaked internal logs — keep the PHONE RINGING sim line. */
 function sanitizeGuestEscalationReply(text) {
   let body = String(text || "");
   body = body.replace(/^.*MANAGER ALERT.*$/gim, "");
-  body = body.replace(/🚨/g, "");
   // Do not instruct the guest to call while already on the line
   body = body.replace(
     /\s*(Please call us directly at[^.\n]*\.?|Por favor llámanos directamente al[^.\n]*\.?|call us directly at\s*\(?\d[\d\s.()-]{7,}\)?[^.]*\.?)/gi,
@@ -480,7 +641,14 @@ function sanitizeGuestEscalationReply(text) {
   );
   body = body.replace(/\bPhone:\s*\(?\d[\d\s.()-]{7,}\)?/gi, "");
   body = body.replace(/\bTel[eé]fono:\s*\(?\d[\d\s.()-]{7,}\)?/gi, "");
-  body = body.replace(/\(210\)\s*455-3474/g, "");
+  // Strip store phone if it sneaks into the handoff; keep PHONE RINGING line intact
+  body = body
+    .split("\n")
+    .map((line) => {
+      if (/PHONE RINGING/i.test(line)) return line;
+      return line.replace(/\(210\)\s*455-3474/g, "");
+    })
+    .join("\n");
   body = body.replace(/\n{3,}/g, "\n\n").trim();
   return body;
 }
@@ -691,6 +859,12 @@ export function generateReply(rawMessage, opts = {}) {
       : `Hello! How can I help you today?`;
   }
 
+  // Direct HOURS / open-now — never help/options menu; language matches the guest
+  if (asksHours(text)) {
+    const hoursLang = hoursReplyLanguage(text, lang);
+    return hoursAnswer(hoursLang);
+  }
+
   if (
     /^help\b/.test(lower) ||
     /^ayuda\b/.test(lower) ||
@@ -813,6 +987,9 @@ export {
   managerEscalationLine,
   happyHourAnswer,
   parkingAnswer,
+  hoursAnswer,
+  asksHours,
+  hoursReplyLanguage,
   asksHappyHour,
   answerPastSpecialOrCustomMod,
   asksPastSpecial,
