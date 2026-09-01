@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { KNOWLEDGE_DIR } from "../paths.js";
 import { getSoldOut } from "../store.js";
 import { hasClearSpanish, isTexasEnglishSlang } from "./language.js";
+import { asksDishAllergen, dishAllergenReply } from "./dish-allergen.js";
 
 const restaurant = JSON.parse(
   readFileSync(join(KNOWLEDGE_DIR, "restaurant.json"), "utf8")
@@ -82,6 +83,43 @@ function isOpenNow() {
   return { open: minutes >= open && minutes < close, day, hours };
 }
 
+const WEEKEND_CLOSE_DAYS = new Set(["friday", "saturday"]);
+
+/** Kitchen + restaurant close 10:00 PM Fri–Sat, 9:00 PM Sun–Thu. */
+function closingClockForDay(day) {
+  const d = String(day || "").toLowerCase();
+  return WEEKEND_CLOSE_DAYS.has(d) ? "10:00 PM" : "9:00 PM";
+}
+
+function displayWeekday(day, lang = "en") {
+  const d = String(day || "").toLowerCase();
+  if (lang === "es") {
+    return (
+      {
+        monday: "lunes",
+        tuesday: "martes",
+        wednesday: "miércoles",
+        thursday: "jueves",
+        friday: "viernes",
+        saturday: "sábado",
+        sunday: "domingo",
+      }[d] || d
+    );
+  }
+  if (!d) return "today";
+  return d.charAt(0).toUpperCase() + d.slice(1);
+}
+
+function closingHoursAnswer(lang = "en", day = null) {
+  const weekday = String(day || nowInRestaurantTz().day || "").toLowerCase();
+  const clock = closingClockForDay(weekday);
+  const name = displayWeekday(weekday, lang);
+  if (lang === "es") {
+    return `Como hoy es ${name}, nuestra cocina y restaurante cierran a las ${clock} esta noche.`;
+  }
+  return `Since today is ${name}, our kitchen and restaurant close at ${clock} tonight!`;
+}
+
 function foldForMatch(text) {
   return String(text || "")
     .normalize("NFD")
@@ -110,6 +148,12 @@ function asksHours(text) {
     /\b(when do you (open|close)|what time do you (open|close)|closing time|opening time)\b/.test(
       t
     ) ||
+    /\b(what time do y'?all (open|close)|when do y'?all (open|close)|y'?all close)\b/.test(
+      t
+    ) ||
+    /\b(what time does (the )?(kitchen|restaurant) close|kitchen close|close tonight|how late|open until)\b/.test(
+      t
+    ) ||
     /^(hours)\b/.test(t.trim());
 
   // Spanish + informal / missing accents: "esta abierto", "a que hora cierran", "horario"
@@ -122,12 +166,39 @@ function asksHours(text) {
       t
     ) ||
     /\b(esta|estan)\s+(abierto|abiertos|cerrado|cerrados)\b/.test(t) ||
-    /\b(abiertos?|cerrados?)\b/.test(t) ||
+    /\b(abiertos?|abiertas?|cerrados?|cerradas?)\b/.test(t) ||
     /\b(abren|cierran)\b/.test(t) ||
     /\b(abiertos? ahora|cerrados? ahora)\b/.test(t) ||
+    /\b(hasta que hora|a que hora tienen|tienen abierta|abierta la cocina|cocina (hoy|abierta)|hora tienen)\b/.test(
+      t
+    ) ||
     /^(horario|horarios|abierto|abiertos|cerrado|cerrados)\b/.test(t.trim());
 
   return en || es;
+}
+
+/** Close tonight / kitchen close — use today's weekday closing time. */
+function asksClosingHours(text) {
+  const t = foldForMatch(text);
+  return (
+    /\b(what time|when).{0,24}\b(do |does )?(y'?all |you |the )?(kitchen |restaurant )?(close|closing)\b/.test(
+      t
+    ) ||
+    /\b(close|closing|cierran|cierre).{0,20}\b(tonight|today|esta noche|hoy)\b/.test(
+      t
+    ) ||
+    /\b(kitchen|restaurante?).{0,24}\b(close|closing|cierran)\b/.test(t) ||
+    /\b(closing time|hora de cierre|a que hora cierran|que hora cierran|cuando cierran)\b/.test(
+      t
+    ) ||
+    /\b(y'?all|you) close\b/.test(t) ||
+    /\b(how late|open until)\b/.test(t) ||
+    /\b(hasta que hora|tienen abierta|abierta la cocina|cocina hoy|hora de la cocina)\b/.test(
+      t
+    ) ||
+    (/\bcocina\b/.test(t) &&
+      /\b(hora|abierta|hoy|cierran|cierre|hasta)\b/.test(t))
+  );
 }
 
 /** Prefer the language of this hours question over sticky chat language. */
@@ -136,7 +207,9 @@ function hoursReplyLanguage(text, fallback = "en") {
   if (hasClearSpanish(text) && !isTexasEnglishSlang(text)) {
     const t = foldForMatch(text);
     if (
-      /\b(horario|horarios|abierto|cerrado|abren|cierran|a que hora|que hora)\b/.test(t)
+      /\b(horario|horarios|abierto|cerrado|abren|cierran|a que hora|que hora|hasta que hora|cocina)\b/.test(
+        t
+      )
     ) {
       return "es";
     }
@@ -144,7 +217,7 @@ function hoursReplyLanguage(text, fallback = "en") {
 
   const t = foldForMatch(text);
   const esCue =
-    /\b(horario|horarios|abierto|abiertos|cerrado|cerrados|a que hora|que hora abren|que hora cierran|hola|buenas)\b/.test(
+    /\b(horario|horarios|abierto|abiertos|abierta|cerrado|cerrados|a que hora|hasta que hora|que hora abren|que hora cierran|cocina|hola|buenas)\b/.test(
       t
     );
   const enCue =
@@ -160,9 +233,14 @@ function hoursReplyLanguage(text, fallback = "en") {
 }
 
 /**
- * Direct HOURS reply — match guest language; Spanish uses warm fixed schedule template.
+ * Direct HOURS reply — closing-tonight uses today's weekday; otherwise weekly schedule.
  */
 function hoursAnswer(lang = "en", opts = {}) {
+  const text = opts.text || "";
+  if (opts.closing === true || (text && asksClosingHours(text))) {
+    return closingHoursAnswer(lang, opts.day);
+  }
+
   const status = isOpenNow();
   const withHints = opts.withHints === true;
 
@@ -194,11 +272,11 @@ function managerEscalationLine(lang = "en", partySize = null) {
   const n = partySize != null && Number(partySize) >= 1 ? Number(partySize) : null;
   if (lang === "es") {
     if (n) {
-      return `Para un evento de grupo de ${n} personas (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager.`;
+      return `Para un evento de grupo de ${n} personas (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un gerente.`;
     }
     return (
       restaurant.reservations?.managerEscalationEs ||
-      "Para hablar con gerencia, estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager."
+      "Para hablar con gerencia, estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un gerente."
     );
   }
   if (n) {
@@ -251,10 +329,16 @@ function standardEscalationAnswers(text, lang = "en") {
       text
     );
 
+  // Closing / store hours FIRST when combined with manager or party booking
+  if (asksHours(text)) {
+    const hoursLang = hoursReplyLanguage(text, lang);
+    bits.push(hoursAnswer(hoursLang, { text }));
+  }
+
   if (asksDog) {
     bits.push(
       lang === "es"
-        ? "¡Sí, nuestro patio es dog-friendly!"
+        ? "¡Sí, nuestro patio admite perros!"
         : "Yes, our patio is dog-friendly!"
     );
   } else if (asksPatio) {
@@ -265,12 +349,14 @@ function standardEscalationAnswers(text, lang = "en") {
     );
   }
 
-  if (asksGluten(text) || asksFryerCrossContact(text)) {
+  if (asksDishAllergen(text)) {
+    bits.push(dishAllergenReply(text, lang));
+  } else if (asksGluten(text) || asksFryerCrossContact(text)) {
     bits.push(glutenFryerAnswer(lang));
   } else if (/\b(dairy|lactose|dairy[- ]?free|sin l[aá]cteos|lactosa)\b/i.test(text)) {
     bits.push(
       lang === "es"
-        ? `Varios platos se pueden ajustar sin lácteos — avisa a tu mesero de tus necesidades de dairy/lactosa. ${ALLERGY_DISCLAIMER_ES}`
+        ? `Varios platos se pueden ajustar sin lácteos — avisa a tu mesero de tus necesidades de lácteos o lactosa. ${ALLERGY_DISCLAIMER_ES}`
         : `Many dishes can be adjusted dairy-free — tell your server about dairy or lactose needs when you order. ${ALLERGY_DISCLAIMER}`
     );
   } else if (/\b(shellfish|mariscos)\b/i.test(text)) {
@@ -286,15 +372,13 @@ function standardEscalationAnswers(text, lang = "en") {
         : `We can help with allergy concerns — tell your server when you arrive. ${ALLERGY_DISCLAIMER}`
     );
   }
-  if (asksHours(text)) {
-    bits.push(hoursAnswer(lang));
-  }
-  if (asksKidsMeal(text)) bits.push(kidsMealReply(text, lang));
+  if (asksDishAllergen(text)) bits.push(dishAllergenReply(text, lang));
+  else if (asksKidsMeal(text)) bits.push(kidsMealReply(text, lang));
   if (asksParking(text)) bits.push(parkingAnswer(lang));
   if (asksHappyHour(text)) {
     bits.push(
       lang === "es"
-        ? `Happy Hour es ${happyHour.days || "domingo–viernes"}, ${happyHour.hours || "3–6pm"} (menú HH separado del pizarrón).`
+        ? `La hora feliz es ${happyHour.daysEs || "domingo a viernes"}, ${happyHour.hours || "3–6pm"} (menú de hora feliz, aparte del pizarrón).`
         : `Happy Hour is ${happyHour.days || "Sunday–Friday"}, ${happyHour.hours || "3–6pm"} (separate from chalkboard specials).`
     );
   }
@@ -303,7 +387,7 @@ function standardEscalationAnswers(text, lang = "en") {
     // Brief catering confirm before transfer — no phone/call prompt
     bits.push(
       lang === "es"
-        ? "Sí — ofrecemos catering y eventos de grupo."
+        ? "Sí — ofrecemos banquetes y eventos de grupo."
         : "Yes — we offer catering and group events."
     );
   }
@@ -435,7 +519,7 @@ function findAllFaq(lower) {
 
 function resolveAnswer(item, lang = "en", guestText = "") {
   let answer;
-  if (item.type === "hours") answer = hoursAnswer(lang);
+  if (item.type === "hours") answer = hoursAnswer(lang, { text: guestText });
   else if (item.type === "kids-meal" || item.id === "kids-menu")
     answer = kidsMealReply(guestText, lang);
   else if (item.type === "kids-sides" || item.id === "kids-sides")
@@ -476,13 +560,13 @@ function happyHourAnswer(lang = "en") {
 
   if (lang === "es") {
     return [
-      `Happy Hour: ${days}, ${hours}.`,
-      "(Esto es el menú de Happy Hour — diferente de los especiales del pizarrón.)",
+      `Hora feliz: domingo a viernes, ${hours}.`,
+      "(Este es el menú de hora feliz — diferente de los especiales del pizarrón.)",
       "",
       "Bebidas:",
       drinks || "• Pregunta a tu mesero por la lista de hoy",
       "",
-      "Comida / small plates:",
+      "Comida / platillos pequeños:",
       food || "• Pregunta a tu mesero por la lista de hoy",
       "",
       `Más info: ${happyHour.sourceUrl || restaurant.website}`,
@@ -504,7 +588,7 @@ function happyHourAnswer(lang = "en") {
 }
 
 function asksHappyHour(text) {
-  return /\b(happy\s*hour|hh\b|drink specials?|half off wine)\b/i.test(text);
+  return /\b(happy\s*hour|hh\b|drink specials?|half off wine|hora feliz)\b/i.test(text);
 }
 
 function asksParking(text) {
@@ -560,7 +644,7 @@ function sideSwapAnswer(lang = "en") {
   if (lang === "es") {
     return (
       restaurant.policies?.sideSubstitutionsEs ||
-      "Sí — podemos cambiar cualquier guarnición (side) por otras guarniciones que tengamos listadas. Dile a tu mesero cuál prefieres."
+      "Sí — podemos cambiar cualquier guarnición por otras guarniciones que tengamos listadas. Dile a tu mesero cuál prefieres."
     );
   }
   return (
@@ -575,6 +659,19 @@ const KIDS_ENTREE_CHOICES = [
   { name: "Chicken Strips", aliases: ["chicken strips", "chicken tenders", "kids chicken", "kids tenders"] },
   { name: "Cheeseburgers", aliases: ["cheeseburger", "cheeseburgers", "kids cheeseburger"] },
   { name: "Hamburgers", aliases: ["hamburger", "hamburgers", "kids hamburger", "kids burger"] },
+  {
+    name: "Mac & Cheese",
+    aliases: [
+      "mac & cheese",
+      "mac and cheese",
+      "mac n cheese",
+      "kids mac",
+      "kids mac and cheese",
+      "kids mac & cheese",
+      "macaroni",
+      "mac",
+    ],
+  },
 ];
 
 const KIDS_SIDE_CHOICES = [
@@ -646,12 +743,12 @@ function kidsEntreesLine(lang = "en") {
   if (lang === "es") {
     return (
       restaurant.policies?.kidsMenuEntreesEs ||
-      "¡Sí! Ofrecemos un menú infantil con Kids Fish Sticks, camarón frito, chicken strips, cheeseburgers y hamburguesas."
+      "¡Sí! Ofrecemos un menú infantil con palitos de pescado, camarón frito, tiras de pollo, hamburguesas con queso, hamburguesas y macarrones con queso."
     );
   }
   return (
     restaurant.policies?.kidsMenuEntrees ||
-    "Yes! We offer a dedicated Kids Menu featuring Kids Fish Sticks, Fried Shrimp, Chicken Strips, Cheeseburgers, and Hamburgers."
+    "Yes! We offer a dedicated Kids Menu featuring Kids Fish Sticks, Fried Shrimp, Chicken Strips, Cheeseburgers, Hamburgers, and Mac & Cheese."
   );
 }
 
@@ -659,7 +756,7 @@ function kidsSidesBrief(lang = "en") {
   if (lang === "es") {
     return (
       restaurant.policies?.kidsMealSidesBriefEs ||
-      "Todas las comidas infantiles incluyen tu elección de UNA guarnición, y podemos sustituir casi cualquier side estándar si lo pides."
+      "Todas las comidas infantiles incluyen tu elección de UNA guarnición, y podemos sustituir casi cualquier guarnición estándar si lo pides."
     );
   }
   return (
@@ -672,7 +769,7 @@ function kidsSidesList(lang = "en") {
   if (lang === "es") {
     return (
       restaurant.policies?.kidsMealSidesEs ||
-      "Las guarniciones infantiles son brócoli, Virginia's Apple Cider Coleslaw, elote, arroz blanco, hush puppies o papas fritas."
+      "Las guarniciones infantiles son brócoli, ensalada de col Virginia's Apple Cider, elote, arroz blanco, bolitas de maíz fritas o papas fritas."
     );
   }
   return (
@@ -718,7 +815,7 @@ function kidsMealReply(text, lang = "en") {
   if (soldNamed.length) {
     body +=
       lang === "es"
-        ? `\n\nHoy estamos 86'd de ${soldNamed.join(", ")}, así que eso no está disponible en el menú infantil.`
+        ? `\n\nHoy estamos agotados de ${soldNamed.join(", ")}, así que eso no está disponible en el menú infantil.`
         : `\n\nWe're sold out of ${soldNamed.join(", ")} today, so that wouldn't be available on the kids menu.`;
   }
   return body;
@@ -738,7 +835,7 @@ function glutenFryerAnswer(lang = "en") {
   if (lang === "es") {
     return (
       restaurant.policies?.glutenFryerEs ||
-      "Tenemos menú sin gluten. Para freidora / contaminación cruzada, avisa a tu mesero o llama a un manager."
+      "Tenemos menú sin gluten. Para freidora / contaminación cruzada, avisa a tu mesero o llama a un gerente."
     );
   }
   return (
@@ -784,7 +881,10 @@ function composeEscalationReply(rawMessage, opts = {}) {
   const handoff = managerEscalationLine(lang, partySize);
 
   const blocks = [];
-  if (standard.length) blocks.push(standard.join(" "));
+  if (standard.length) {
+    blocks.push(standard[0]);
+    if (standard.length > 1) blocks.push(standard.slice(1).join(" "));
+  }
   blocks.push(handoff);
   blocks.push(SIM_PHONE_RINGING);
 
@@ -826,6 +926,35 @@ function sanitizeGuestEscalationReply(text) {
   return body;
 }
 
+function countGuestIntents(text) {
+  let n = 0;
+  if (asksHours(text) || asksClosingHours(text)) n += 1;
+  if (asksKidsMeal(text)) n += 1;
+  if (asksDishAllergen(text)) n += 1;
+  if (isSideSwap(text)) n += 1;
+  if (asksHappyHour(text)) n += 1;
+  if (asksParking(text)) n += 1;
+  if (asksGluten(text) || asksFryerCrossContact(text)) n += 1;
+  if (extractPartySize(text) != null) n += 1;
+  if (asksManagerEscalation(text) || asksCateringEscalation(text)) n += 1;
+  if (isSeatingPreference(text)) n += 1;
+  return n;
+}
+
+/** Two or more guest asks in one message — answer every part, do not stop at hours. */
+function isMultiIntentQuery(text) {
+  if (countGuestIntents(text) >= 2) return true;
+  const t = foldForMatch(text);
+  const connector = /\b(y|e|and|ademas|también|tambien|,)\b/.test(t);
+  if (!connector) return false;
+  return (
+    (asksHours(text) || asksClosingHours(text)) &&
+    /\b(papas?|ensalada|sides?|gluten|ninos|ninas|estacionamiento|reserv|mesa|patio|kids|parking|cambiar|menu infantil|alergen|alergia)\b/.test(
+      t
+    )
+  );
+}
+
 /**
  * Compose a reliable multi-part answer (party + sides + gluten/fryer + HH + parking)
  * in English or Spanish without waiting on AI.
@@ -836,16 +965,24 @@ function composeMultiPartReply(rawMessage, opts = {}) {
   if (!text) return null;
 
   const parts = [];
+  if (asksHours(text) || asksClosingHours(text)) {
+    const hoursLang = hoursReplyLanguage(text, lang);
+    parts.push(hoursAnswer(hoursLang, { text }));
+  }
+
   const partySize = extractPartySize(text);
   const partyBit = partyBookingAnswer(partySize, text, lang);
   if (partyBit) parts.push(partyBit);
 
-  if (asksKidsMeal(text)) parts.push(kidsMealReply(text, lang));
+  if (asksKidsMeal(text) && !asksDishAllergen(text)) parts.push(kidsMealReply(text, lang));
+  else if (asksDishAllergen(text)) parts.push(dishAllergenReply(text, lang));
   else if (isSideSwap(text)) parts.push(sideSwapAnswer(lang));
   if (asksHappyHour(text)) parts.push(happyHourAnswer(lang));
   if (asksParking(text)) parts.push(parkingAnswer(lang));
 
-  if (asksGluten(text) || asksFryerCrossContact(text)) {
+  if (asksDishAllergen(text)) {
+    // dish-specific allergen reply already includes disclaimer + side swap
+  } else if (asksGluten(text) || asksFryerCrossContact(text)) {
     // glutenFryerAnswer already weaves shared-fryer + allergy safety once in the menu section
     parts.push(glutenFryerAnswer(lang));
   }
@@ -856,18 +993,24 @@ function composeMultiPartReply(rawMessage, opts = {}) {
     "kids-menu",
     "kids-sides",
     "gluten",
+    "dairy",
     "party-size-max",
     "party-of-6",
     "happy-hour",
     "hh-food",
     "parking",
     "parking-fee",
+    "hours",
+    "open-now",
   ]);
   const extra = findAllFaq(lower).filter((i) => {
     if (skip.has(i.id)) return false;
+    if (asksHours(text) && (i.type === "hours" || i.id === "hours" || i.id === "open-now")) {
+      return false;
+    }
     // Avoid a second allergy/gluten FAQ block when menu section already covered it
     if (
-      (asksGluten(text) || asksFryerCrossContact(text)) &&
+      (asksDishAllergen(text) || asksGluten(text) || asksFryerCrossContact(text)) &&
       ALLERGY_FAQ_IDS.has(i.id)
     ) {
       return false;
@@ -877,7 +1020,7 @@ function composeMultiPartReply(rawMessage, opts = {}) {
     }
     return true;
   });
-  for (const hit of extra.slice(0, 2)) {
+  for (const hit of extra.slice(0, 4)) {
     const ans = resolveAnswer(hit, lang, text);
     if (ans && !parts.some((p) => p.includes(ans.slice(0, 40)))) {
       parts.push(ans);
@@ -978,22 +1121,22 @@ function proactivePastSpecialMatch(text, lang) {
 
   if (/\b(pasta|fettuccine|linguini|linguine|penne)\b/i.test(t) && /\bsalmon\b/i.test(t)) {
     return lang === "es"
-      ? `Los especiales de pasta del pizarrón rotan, así que ese plato exacto no está en el board de hoy. ¡Pero sí podemos blacken nuestro Salmon fresco y mezclarlo con pasta en salsa ajo-crema o cajún para esos mismos sabores. ${side}`
+      ? `Los especiales de pasta del pizarrón rotan, así que ese plato exacto no está en el pizarrón de hoy. ¡Pero sí podemos sazonar nuestro salmón fresco al estilo cajún y mezclarlo con pasta en salsa ajo-crema para esos mismos sabores. ${side}`
       : `Our chalkboard pasta specials rotate, so that exact dish isn’t on today’s board! However, we can blacken our fresh Salmon and toss it with pasta in a garlic-cream or Cajun sauce to match those exact flavors. ${side}`;
   }
   if (/\bpasta\b/i.test(t)) {
     return lang === "es"
-      ? `Los especiales de pasta del pizarrón rotan, así que ese plato exacto no está en el board de hoy. ¡Pero sí podemos preparar pescado o camarón blackened con pasta en salsa ajo-crema o estilo cajún. ${side}`
+      ? `Los especiales de pasta del pizarrón rotan, así que ese plato exacto no está en el pizarrón de hoy. ¡Pero sí podemos preparar pescado o camarón al estilo cajún con pasta en salsa ajo-crema. ${side}`
       : `Our chalkboard pasta specials rotate, so that exact dish isn’t on today’s board! However, we can do blackened fish or shrimp tossed with pasta in a garlic-cream or Cajun-style sauce. ${side}`;
   }
   if (/\bsalmon\b/i.test(t)) {
     return lang === "es"
-      ? `Los especiales del pizarrón rotan, así que ese salmon especial puede no estar hoy. ¡Pero sí podemos blacken o asar nuestro Salmon fresco con un acabado ajo-crema o cajún para acercarnos a esos sabores. ${side}`
+      ? `Los especiales del pizarrón rotan, así que ese salmón especial puede no estar hoy. ¡Pero sí podemos sazonar o asar nuestro salmón fresco con un acabado ajo-crema o cajún para acercarnos a esos sabores. ${side}`
       : `Our chalkboard specials rotate, so that exact salmon special may not be on today’s board! However, we can blacken or grill our fresh Salmon with a garlic-cream or Cajun finish to match those flavors. ${side}`;
   }
   if (/\bredfish|red fish\b/i.test(t)) {
     return lang === "es"
-      ? `Los especiales del pizarrón rotan, así que ese redfish especial puede no estar hoy. ¡Pero sí podemos blacken nuestro Texas Redfish y acompañarlo con camarón, mantequilla de crawfish o sazón cajún. ${side}`
+      ? `Los especiales del pizarrón rotan, así que ese redfish especial puede no estar hoy. ¡Pero sí podemos sazonar nuestro Texas Redfish al estilo cajún y acompañarlo con camarón, mantequilla de crawfish o sazón cajún. ${side}`
       : `Our chalkboard specials rotate, so that exact redfish special may not be on today’s board! However, we can blacken our Texas Redfish and finish it with shrimp, crawfish butter, or Cajun seasoning. ${side}`;
   }
   return null;
@@ -1035,10 +1178,24 @@ export function generateReply(rawMessage, opts = {}) {
       : `Hello! How can I help you today?`;
   }
 
-  // Direct HOURS / open-now — never help/options menu; language matches the guest
+  // Direct HOURS / close tonight — never help/options menu; language matches the guest
   if (asksHours(text)) {
     const hoursLang = hoursReplyLanguage(text, lang);
-    return hoursAnswer(hoursLang);
+    if (needsManagerEscalation(text)) {
+      return composeEscalationReply(text, { language: hoursLang });
+    }
+    if (isMultiIntentQuery(text)) {
+      return (
+        composeMultiPartReply(text, { language: hoursLang }) ||
+        hoursAnswer(hoursLang, { text })
+      );
+    }
+    return hoursAnswer(hoursLang, { text });
+  }
+
+  // Specific dish + allergen: dish status FIRST, then disclaimer, then side swap
+  if (asksDishAllergen(text)) {
+    return dishAllergenReply(text, lang);
   }
 
   // Kids menu: exactly ONE side; 86 a side only if the guest named it
@@ -1059,8 +1216,8 @@ export function generateReply(rawMessage, opts = {}) {
         "• HORARIO / ABIERTO",
         "• DIRECCIÓN / ESTACIONAMIENTO",
         "• MENÚ / ESPECIALES",
-        "• ALERGIAS / GLUTEN / MARISCOS",
-        "• HAPPY HOUR / BEBIDAS",
+        "• ALERGIAS / SIN GLUTEN / MARISCOS",
+        "• HORA FELIZ / BEBIDAS",
         "• RESERVACIÓN / CAMBIAR / CANCELAR",
         "• PARA LLEVAR",
         "• CATERING / EVENTO PRIVADO",
@@ -1170,10 +1327,16 @@ export {
   parkingAnswer,
   hoursAnswer,
   asksHours,
+  asksClosingHours,
   hoursReplyLanguage,
+  closingHoursAnswer,
+  closingClockForDay,
+  isMultiIntentQuery,
   asksHappyHour,
   asksKidsMeal,
   kidsMealReply,
+  asksDishAllergen,
+  dishAllergenReply,
   answerPastSpecialOrCustomMod,
   asksPastSpecial,
   isLargeOnlineParty,

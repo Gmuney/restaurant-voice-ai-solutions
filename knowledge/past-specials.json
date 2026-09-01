@@ -3,7 +3,7 @@
   "sideSwapReminder": "Happy to swap any listed side—like garlic bread or fries for a side salad—just note it with your server or on to-go.",
   "sideSwapReminderEs": "Con gusto cambiamos cualquier guarnición listada—por ejemplo pan de ajo o papas por ensalada—solo anótalo con tu mesero o en para llevar.",
   "genericHostMatch": "Our chalkboard specials rotate, so that exact dish isn’t on today’s board! However, we can build something close from tonight’s kitchen—blackened or grilled fish with shrimp, tossed in a garlic-cream or Cajun-style sauce over pasta or rice. Happy to swap any listed side—like fries for a side salad—just note it with your server or on to-go.",
-  "genericHostMatchEs": "Los especiales del pizarrón rotan, así que ese plato exacto no está en el board de hoy. ¡Pero sí podemos armar algo cercano con lo de la cocina—pescado blackened o a la parrilla con camarón, en salsa ajo-crema o estilo cajún sobre pasta o arroz. Con gusto cambiamos cualquier guarnición listada—por ejemplo papas por ensalada—solo anótalo con tu mesero o en para llevar.",
+  "genericHostMatchEs": "Los especiales del pizarrón rotan, así que ese plato exacto no está en el pizarrón de hoy. ¡Pero sí podemos armar algo cercano con lo de la cocina: pescado sazonado al estilo cajún o a la parrilla con camarón, en salsa ajo-crema sobre pasta o arroz. Con gusto cambiamos cualquier guarnición listada, por ejemplo papas por ensalada; solo anótalo con tu mesero o en para llevar.",
   "items": [
     {
       "id": "cajun-salmon-pasta",
@@ -16,7 +16,7 @@
         "salmon cajun pasta"
       ],
       "hostReply": "Our chalkboard pasta specials rotate, so that exact dish isn’t on today’s board! However, we can blacken our fresh Salmon and toss it with pasta in a garlic-cream or Cajun sauce to match those exact flavors. Happy to swap any listed side—like garlic bread or fries for a side salad—just note it with your server or on to-go.",
-      "hostReplyEs": "Los especiales de pasta del pizarrón rotan, así que ese plato exacto no está en el board de hoy. ¡Pero sí podemos blacken nuestro Salmon fresco y mezclarlo con pasta en salsa ajo-crema o cajún para esos mismos sabores. Con gusto cambiamos cualquier guarnición listada—por ejemplo pan de ajo o papas por ensalada—solo anótalo con tu mesero o en para llevar."
+      "hostReplyEs": "Los especiales de pasta del pizarrón rotan, así que ese plato exacto no está en el pizarrón de hoy. ¡Pero sí podemos sazonar nuestro salmón fresco al estilo cajún y mezclarlo con pasta en salsa ajo-crema para esos mismos sabores. Con gusto cambiamos cualquier guarnición listada, por ejemplo pan de ajo o papas por ensalada; solo anótalo con tu mesero o en para llevar."
     },
     {
       "id": "redfish-pontchartrain",
@@ -29,7 +29,7 @@
         "sauce pontchartrain"
       ],
       "hostReply": "Our chalkboard specials rotate, so that exact Redfish Pontchartrain isn’t on today’s board! However, we can blacken our Texas Redfish and top it with grilled shrimp and crab, finishing with crawfish butter or Cajun seasoning to match those flavors. Happy to swap any listed side—like dirty rice or green beans for a side salad—just note it with your server or on to-go.",
-      "hostReplyEs": "Los especiales del pizarrón rotan, así que ese Redfish Pontchartrain exacto no está en el board de hoy. ¡Pero sí podemos blacken nuestro Texas Redfish y cubrirlo con camarón a la parrilla y cangrejo, terminando con mantequilla de crawfish o sazón cajún. Con gusto cambiamos cualquier guarnición listada—por ejemplo dirty rice o ejotes por ensalada—solo anótalo con tu mesero o en para llevar."
+      "hostReplyEs": "Los especiales del pizarrón rotan, así que ese Redfish Pontchartrain exacto no está en el pizarrón de hoy. ¡Pero sí podemos sazonar nuestro Texas Redfish al estilo cajún y cubrirlo con camarón a la parrilla y cangrejo, terminando con mantequilla de cangrejo de río o sazón cajún. Con gusto cambiamos cualquier guarnición listada, por ejemplo arroz sucio o ejotes por ensalada; solo anótalo con tu mesero o en para llevar."
     }
   ]
 }

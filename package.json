@@ -15,7 +15,7 @@
     "snapshot-board": "node src/board/snapshot-board.js",
     "reocr-board": "node src/board/reocr-board.js",
     "test:replies": "node tests/replies.test.js && node tests/language.test.js",
-    "check": "node --check src/bot/telegram.js && node --check src/api/server.js && node --check src/engine/reply.js && node --check src/engine/language.js && node --check src/ai/chat.js"
+    "check": "node --check src/bot/telegram.js && node --check src/api/server.js && node --check src/engine/reply.js && node --check src/engine/language.js && node --check src/engine/dish-allergen.js && node --check src/ai/chat.js"
   },
   "license": "UNLICENSED",
   "dependencies": {

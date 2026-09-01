@@ -12,6 +12,7 @@ import {
   hoursAnswer,
   asksHours,
   hoursReplyLanguage,
+  isMultiIntentQuery,
   asksHappyHour,
   asksKidsMeal,
   kidsMealReply,
@@ -19,6 +20,7 @@ import {
   isLargeOnlineParty,
   MAX_ONLINE_PARTY,
 } from "../engine/reply.js";
+import { asksDishAllergen, dishAllergenReply } from "../engine/dish-allergen.js";
 import {
   unlockManager,
   listManagerIds,
@@ -1225,7 +1227,7 @@ async function handleOrderSession(msg) {
       await bot.sendMessage(
         chatId,
         lang === "es"
-          ? `Aviso: puede estar 86'd: ${hits.map((h) => h.name).join(", ")}`
+          ? `Aviso: puede estar agotado: ${hits.map((h) => h.name).join(", ")}`
           : `Heads-up, may be 86'd: ${hits.map((h) => h.name).join(", ")}`
       );
     }
@@ -1333,17 +1335,45 @@ bot.on("message", async (msg) => {
     // Manager inventory: "86 redfish" / "un86 redfish" / "86 list" (no slash needed)
     if (await handlePlain86(msg)) return;
 
+    // Multi-intent (Spanish or English): answer every part in one reply, hours first
+    if (isMultiIntentQuery(msg.text) && !needsManagerEscalation(msg.text)) {
+      const hoursLang = asksHours(msg.text)
+        ? hoursReplyLanguage(msg.text, lang)
+        : lang;
+      setChatLang(chatId, hoursLang);
+      const structured = composeMultiPartReply(msg.text, { language: hoursLang });
+      if (structured) {
+        appendChatMessage(chatId, { role: "user", content: msg.text });
+        appendChatMessage(chatId, { role: "model", content: structured });
+        console.log(`[TG] MULTI intent → ${hoursLang}`);
+        await bot.sendMessage(chatId, structured.slice(0, 4000));
+        return;
+      }
+    }
+
     // Spanish/English HOURS intent — bypass wizards, multipart, AI, and help/options menu
     if (asksHours(msg.text) && !needsManagerEscalation(msg.text)) {
       setSession(chatId, null);
       const hoursLang = hoursReplyLanguage(msg.text, lang);
       setChatLang(chatId, hoursLang);
-      const hoursReply = hoursAnswer(hoursLang);
+      const hoursReply = hoursAnswer(hoursLang, { text: msg.text });
       appendChatMessage(chatId, { role: "user", content: msg.text });
       appendChatMessage(chatId, { role: "model", content: hoursReply });
       console.log(`[TG] HOURS intent → ${hoursLang}`);
       await bot.sendMessage(chatId, hoursReply.slice(0, 4000));
       return;
+    }
+
+    // Specific dish + allergen: dish status first, then disclaimer, then side swap
+    if (asksDishAllergen(msg.text) && !needsManagerEscalation(msg.text)) {
+      const allergenReply = dishAllergenReply(msg.text, lang);
+      if (allergenReply) {
+        appendChatMessage(chatId, { role: "user", content: msg.text });
+        appendChatMessage(chatId, { role: "model", content: allergenReply });
+        console.log(`[TG] DISH allergen intent → ${lang}`);
+        await bot.sendMessage(chatId, allergenReply.slice(0, 4000));
+        return;
+      }
     }
 
     // Kids menu: exactly ONE side; don't volunteer 86'd sides

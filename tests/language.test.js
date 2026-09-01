@@ -34,6 +34,11 @@ for (const s of slang) {
 
 assert("hours yall stays EN", hoursReplyLanguage("yall open?", "en") === "en");
 assert("hours howdy stays EN", hoursReplyLanguage("howdy are y'all open", "en") === "en");
+assert(
+  "cocina hoy is ES",
+  hoursReplyLanguage("¿hasta qué hora tienen abierta la cocina hoy?", "en") ===
+    "es"
+);
 
 assert("hola is ES", detectMessageLanguage("hola") === "es");
 assert("gracias is ES", detectMessageLanguage("gracias") === "es");

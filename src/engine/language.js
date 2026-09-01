@@ -8,10 +8,10 @@ const TEXAS_ENGLISH_SLANG =
 
 /** Clear Spanish — not English slang, not shared words like "menu". */
 const CLEAR_SPANISH =
-  /\b(hola|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|por\s+favor|quiero|quisiera|quisi[eé]ramos|necesito|necesitamos|tienen|tiene|hacen|puedo|podemos|cu[aá]nto|cu[aá]ntos|d[oó]nde|horario|horarios|reservaci[oó]n|reservar|mesa\s+para|para\s+llevar|alergia|al[eé]rgico|al[eé]rgica|sin\s+gluten|ni[nñ]os?|niñas?|adultos?|hoy|ma[nñ]ana|esta\s+noche|espa[nñ]ol|especiales|cu[aá]l|cu[aá]les|abiertos?|cerrados?|abierto|cerrado|restaurante|direcci[oó]n|tel[eé]fono|ayudame|ay[uú]dame|cu[aá]nto\s+cuesta|podr[ií]an|me\s+gustar[ií]a|una\s+mesa|confirmar|cancelar|freidora|empanizado|personas|menú|a\s+qu[eé]\s+hora|qu[eé]\s+tal|saludos)\b/i;
+  /\b(hola|buenas|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|gracias|por\s+favor|quiero|quisiera|quisi[eé]ramos|necesito|necesitamos|tienen|tiene|hacen|puedo|podemos|cu[aá]nto|cu[aá]ntos|d[oó]nde|horario|horarios|reservaci[oó]n|reservar|mesa\s+para|para\s+llevar|alergia|al[eé]rgico|al[eé]rgica|sin\s+gluten|ni[nñ]os?|niñas?|adultos?|hoy|ma[nñ]ana|esta\s+noche|espa[nñ]ol|especiales|cu[aá]l|cu[aá]les|abiertos?|abiertas?|cerrados?|abierto|abierta|cerrado|restaurante|cocina|hasta|direcci[oó]n|tel[eé]fono|ayudame|ay[uú]dame|cu[aá]nto\s+cuesta|podr[ií]an|me\s+gustar[ií]a|una\s+mesa|confirmar|cancelar|freidora|empanizado|personas|menú|a\s+qu[eé]\s+hora|hasta\s+qu[eé]\s+hora|qu[eé]\s+tal|saludos)\b/i;
 
 const CLEAR_SPANISH_PHRASES =
-  /\b(a\s+qu[eé]\s+hora|por\s+favor|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|para\s+llevar|mesa\s+para|est[aá]n\s+abiertos?|est[aá]\s+abierto)\b/i;
+  /\b(a\s+qu[eé]\s+hora|hasta\s+qu[eé]\s+hora|por\s+favor|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches|para\s+llevar|mesa\s+para|est[aá]n\s+abiertos?|est[aá]\s+abierto|abierta\s+la\s+cocina)\b/i;
 
 const ENGLISH_WORDS =
   /\b(hello|hey|hi|thanks|please|want|need|have|do you|can i|how much|where|hours|reservation|table for|to[- ]?go|allergy|allergic|gluten|kids?|adults?|today|tomorrow|menu|specials|open|closed|address|phone|booth|patio|y['’]?all|ya['’]?ll|howdy)\b/i;
@@ -132,11 +132,12 @@ export function languagePromptBlock(language) {
   if (language === "es") {
     return `
 LANGUAGE (ACTIVE — guest is speaking Spanish):
-- Reply entirely in natural, friendly Spanish (Mexican / US Southwest restaurant style is fine).
-- Keep dish names, brand names, URLs, prices, and phone numbers as written in the knowledge.
+- Reply 100% in natural, friendly Spanish (Mexican / US Southwest restaurant style is fine). Do not mix in English filler words.
+- Use "esta noche" (never "tonight"), "guarnición" (never "side"), "hora feliz" (never "Happy Hour"), "pizarrón" (never "board"), "gerente" (never "manager"), "de forma predeterminada" (never "default").
+- Keep official dish names, URLs, prices, and phone numbers as written in the knowledge.
 - Allergy / shared-fryer safety: if allergies or fryers come up, weave this ONCE into the menu section (never a standalone line at the end):
   "Por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada."
-- Parties of 8+ or “hablar con gerencia/manager/dueño”: alert managers internally, then tell the guest — "Para reservaciones de grupo de este tamaño (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un manager." Answer safe questions (horario, patio, sides) in the same reply. Never send MANAGER ALERT text or tell them to call the store while already on the line.
+- Parties of 8+ or “hablar con gerencia/gerente/dueño”: alert managers internally, then tell the guest — "Para reservaciones de grupo de este tamaño (o para hablar con gerencia), estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un gerente." Answer safe questions (horario, patio, guarniciones) in the same reply. Never send MANAGER ALERT text or tell them to call the store while already on the line.
 - If the guest later greets in English (hi/hey/hello/howdy/y'all) or uses Texas slang without Spanish, switch fully to English.
 `;
   }
@@ -158,11 +159,11 @@ export const ES = {
   adultsKids: "¿Cuántos adultos y cuántos niños? (ej: 2 adultos, 1 niño)",
   date: "¿Qué día? (ej: hoy, viernes, 8/15)",
   time: "¿A qué hora? (ej: 5pm, 6:30pm)",
-  seating: "¿Prefieren booth (cabina), mesa, o mesa en el patio?",
+  seating: "¿Prefieren cabina, mesa, o mesa en el patio?",
   name: "¿Nombre para la reservación?",
   adultsKidsRetry: "Por favor indica adultos y niños, como: 3 adultos, 1 niño",
   needOneGuest: "Necesitamos al menos 1 persona — ¿lo intentamos de nuevo?",
-  seatingRetry: "Elige una opción: booth, mesa, o patio",
+  seatingRetry: "Elige una opción: cabina, mesa, o patio",
   confirmed: (name, adults, kids, partySize, date, time, seating, id) =>
     [
       "✅ ¡Reservación confirmada!",
@@ -179,7 +180,7 @@ export const ES = {
   orderStart: (url) =>
     `Pedido para llevar — ¿nombre para la orden?\n(O pide en línea: ${url})\nEscribe cancelar para detener.`,
   orderPhone: "¿Teléfono?",
-  orderPickup: "¿Hora de recoger? (30 min, 6:15pm, ASAP)",
+  orderPickup: "¿Hora de recoger? (30 min, 6:15 p. m., lo antes posible)",
   orderItems: "¿Artículos y cantidades?",
   orderNotes: '¿Notas? O escribe "ninguna".',
   orderSent: (name, pickup) =>
@@ -187,7 +188,7 @@ export const ES = {
   glitch: (phone) =>
     `Perdón — hubo un fallo. Llama al ${phone}.`,
   soldOut: (names, menuUrl) =>
-    `Se nos agotó: ${names} por hoy.\n(Tablero 86 demo — después puede sincronizar con el inventario del restaurante.)\nMenú: ${menuUrl}`,
+    `Se nos agotó: ${names} por hoy.\n(Tablero de agotados de demostración — después puede sincronizar con el inventario del restaurante.)\nMenú: ${menuUrl}`,
   greeting: (name) => `¡Hola! ¿En qué puedo ayudarte hoy?`,
   help: (name) =>
     [
@@ -195,8 +196,8 @@ export const ES = {
       "• HORARIO / ABIERTO",
       "• DIRECCIÓN / ESTACIONAMIENTO",
       "• MENÚ / ESPECIALES",
-      "• ALERGIAS / GLUTEN / MARISCOS",
-      "• HAPPY HOUR / BEBIDAS",
+      "• ALERGIAS / SIN GLUTEN / MARISCOS",
+      "• HORA FELIZ / BEBIDAS",
       "• RESERVACIÓN / CAMBIAR / CANCELAR",
       "• PARA LLEVAR",
       "• CATERING / EVENTO PRIVADO",
@@ -211,7 +212,7 @@ export const ES = {
 
 export function seatingLabel(seating, lang) {
   if (lang !== "es") return seating;
-  if (seating === "booth") return "booth (cabina)";
+  if (seating === "booth") return "cabina";
   if (seating === "patio") return "mesa en el patio";
   if (seating === "table") return "mesa";
   return seating;

@@ -130,6 +130,11 @@
       "category": "appetizers",
       "onMenu": true,
       "blurb": "Choice of Cajun butter or garlic-herb butter.",
+      "allergens": {
+        "dairy": "contains",
+        "dairyNote": "butter/dairy",
+        "shellfish": "contains"
+      },
       "proteins": [
         "shellfish"
       ],
@@ -457,7 +462,10 @@
       "aliases": [
         "salmon",
         "grilled salmon",
-        "sockeye"
+        "sockeye",
+        "blackened salmon",
+        "garlic caper salmon",
+        "garlic caper grilled salmon"
       ],
       "category": "entrees",
       "onMenu": true,
@@ -469,7 +477,21 @@
         "grilled"
       ],
       "fish": true,
-      "shellfish": false
+      "shellfish": false,
+      "allergens": {
+        "dairy": "contains",
+        "dairyNote": "butter/dairy",
+        "gluten": "free",
+        "shellfish": "free"
+      },
+      "prepVariants": {
+        "blackened": {
+          "displayName": "Blackened Salmon",
+          "dairy": "free",
+          "gluten": "free",
+          "shellfish": "free"
+        }
+      }
     },
     {
       "id": "blackened-trout",
@@ -490,7 +512,12 @@
         "blackened"
       ],
       "fish": true,
-      "shellfish": false
+      "shellfish": false,
+      "allergens": {
+        "dairy": "free",
+        "gluten": "free",
+        "shellfish": "free"
+      }
     },
     {
       "id": "fish-chips",
@@ -514,7 +541,12 @@
         "fried"
       ],
       "fish": true,
-      "shellfish": false
+      "shellfish": false,
+      "allergens": {
+        "gluten": "contains",
+        "glutenNote": "gluten",
+        "shellfish": "free"
+      }
     },
     {
       "id": "chicken-milanese",
@@ -1004,6 +1036,28 @@
       "cook": ["grilled"],
       "fish": false,
       "shellfish": false
+    },
+    {
+      "id": "kids-mac-cheese",
+      "name": "Kids Mac & Cheese",
+      "aliases": [
+        "kids mac",
+        "kids mac and cheese",
+        "kids mac & cheese",
+        "kid mac",
+        "kids macaroni"
+      ],
+      "category": "kids",
+      "onMenu": true,
+      "blurb": "Kids menu entree. Comes with one side.",
+      "proteins": ["vegetarian"],
+      "cook": ["baked"],
+      "fish": false,
+      "shellfish": false,
+      "allergens": {
+        "dairy": "contains",
+        "gluten": "contains"
+      }
     },
     {
       "id": "broccoli",

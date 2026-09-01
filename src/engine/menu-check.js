@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { restaurant, ALLERGY_DISCLAIMER, ALLERGY_DISCLAIMER_ES, hasAllergyDisclaimer, ensureSingleAllergyDisclaimer } from "./reply.js";
+import { asksDishAllergen } from "./dish-allergen.js";
 import { getSoldOut } from "../store.js";
 import { readCachedBoard } from "../board/read-board.js";
 import { KNOWLEDGE_DIR } from "../paths.js";
@@ -424,6 +425,7 @@ export function answerMenuList(rawMessage) {
 export function answerAvailability(rawMessage) {
   const text = String(rawMessage || "").trim();
   if (!text) return null;
+  if (asksDishAllergen(text)) return null;
 
   // Let category lists win over "do you have tacos?"
   if (answerMenuList(text) && findCategory(text) && !findMenuItem(text)) {

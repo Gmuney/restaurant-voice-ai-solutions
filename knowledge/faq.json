@@ -7,6 +7,12 @@
         "hours",
         "what time do you open",
         "what time do you close",
+        "what time do y'all close",
+        "what time do yall close",
+        "close tonight",
+        "kitchen close",
+        "what time does the kitchen close",
+        "how late are you open",
         "closing time",
         "opening time",
         "when do you open",
@@ -17,6 +23,11 @@
         "a que hora abren",
         "a qué hora cierran",
         "a que hora cierran",
+        "hasta qué hora",
+        "hasta que hora",
+        "abierta la cocina",
+        "tienen abierta la cocina",
+        "hora tienen abierta",
         "what are your hours",
         "your hours",
         "hours of operation",
@@ -407,7 +418,7 @@
         "options for children"
       ],
       "type": "kids-meal",
-      "answer": "Yes! We offer a dedicated Kids Menu featuring Kids Fish Sticks, Fried Shrimp, Chicken Strips, Cheeseburgers, and Hamburgers.\n\nAll kids meals include your choice of ONE side, and we can substitute pretty much any standard side upon request!"
+      "answer": "Yes! We offer a dedicated Kids Menu featuring Kids Fish Sticks, Fried Shrimp, Chicken Strips, Cheeseburgers, Hamburgers, and Mac & Cheese.\n\nAll kids meals include your choice of ONE side, and we can substitute pretty much any standard side upon request!"
     },
     {
       "id": "kids-sides",
@@ -426,7 +437,7 @@
         "kids meal come with"
       ],
       "type": "kids-sides",
-      "answer": "Yes! We offer a dedicated Kids Menu featuring Kids Fish Sticks, Fried Shrimp, Chicken Strips, Cheeseburgers, and Hamburgers.\n\nAll kids meals include your choice of ONE side, and we can substitute pretty much any standard side upon request!\n\nKids sides are Broccoli, Virginia's Apple Cider Coleslaw, Corn on the Cob, White Rice, Hush Puppies, or Fries."
+      "answer": "Yes! We offer a dedicated Kids Menu featuring Kids Fish Sticks, Fried Shrimp, Chicken Strips, Cheeseburgers, Hamburgers, and Mac & Cheese.\n\nAll kids meals include your choice of ONE side, and we can substitute pretty much any standard side upon request!\n\nKids sides are Broccoli, Virginia's Apple Cider Coleslaw, Corn on the Cob, White Rice, Hush Puppies, or Fries."
     },
     {
       "id": "lunch",
