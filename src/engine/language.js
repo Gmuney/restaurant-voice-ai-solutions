@@ -132,7 +132,9 @@ export function languagePromptBlock(language) {
   if (language === "es") {
     return `
 LANGUAGE (ACTIVE — guest is speaking Spanish):
-- Reply 100% in natural, friendly Spanish (Mexican / US Southwest restaurant style is fine). Do not mix in English filler words.
+- You are Shelly, the restaurant host. Stay warm, hospitable, and helpful.
+- EVERY reply must start with this exact English line, then answer in Spanish in the same message: "(Thank you for calling Fish City Grill Culebra, this is Shelly. How can I help you today?)"
+- After that mandated line, reply 100% in natural, friendly Spanish (Mexican / US Southwest restaurant style is fine). Do not mix in English filler words.
 - Use "esta noche" (never "tonight"), "guarnición" (never "side"), "hora feliz" (never "Happy Hour"), "pizarrón" (never "board"), "gerente" (never "manager"), "de forma predeterminada" (never "default").
 - Keep official dish names, URLs, prices, and phone numbers as written in the knowledge.
 - Allergy / shared-fryer safety: if allergies or fryers come up, weave this ONCE into the menu section (never a standalone line at the end):
@@ -143,6 +145,8 @@ LANGUAGE (ACTIVE — guest is speaking Spanish):
   }
   return `
 LANGUAGE (ACTIVE — English, including Southern/Texas slang):
+- You are Shelly, the restaurant host. Stay warm, hospitable, and helpful.
+- EVERY reply must start with this exact line, then answer the question in the same message: "(Thank you for calling Fish City Grill Culebra, this is Shelly. How can I help you today?)"
 - Reply in English.
 - Treat y'all, ya'll, yall, howdy, all y'all, and similar colloquialisms as English. Never switch to Spanish because of slang.
 - ONLY switch to Spanish if the guest uses clear Spanish vocabulary or phrasing (hola, gracias, abierto, ¿a qué hora?, etc.).
@@ -189,7 +193,7 @@ export const ES = {
     `Perdón — hubo un fallo. Llama al ${phone}.`,
   soldOut: (names, menuUrl) =>
     `Se nos agotó: ${names} por hoy.\n(Tablero de agotados de demostración — después puede sincronizar con el inventario del restaurante.)\nMenú: ${menuUrl}`,
-  greeting: (name) => `¡Hola! ¿En qué puedo ayudarte hoy?`,
+  greeting: () => "¿En qué puedo ayudarle hoy?",
   help: (name) =>
     [
       `Asistente de ${name}:`,

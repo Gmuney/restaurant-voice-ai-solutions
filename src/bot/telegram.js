@@ -19,6 +19,7 @@ import {
   answerPastSpecialOrCustomMod,
   isLargeOnlineParty,
   MAX_ONLINE_PARTY,
+  withCallOpening,
 } from "../engine/reply.js";
 import { asksDishAllergen, dishAllergenReply } from "../engine/dish-allergen.js";
 import {
@@ -82,10 +83,16 @@ function chatLanguage(chatId, text) {
   });
 }
 
+/** Every guest-facing call response starts with the mandated parenthetical greeting. */
+function openCall(_chatId, reply) {
+  return withCallOpening(reply);
+}
+
 /** English replies stay English; Spanish guests get Spanish (AI or translated FAQ). */
 async function sendGuest(chatId, text, lang = "en") {
   let out = String(text || "");
   if (lang === "es") out = await translateToSpanish(out);
+  out = openCall(chatId, out);
   await bot.sendMessage(chatId, out.slice(0, 4000));
   return out;
 }
@@ -451,10 +458,9 @@ async function sendSpecials(chatId, extraText = "") {
 
 bot.onText(/^\/start(?:@\w+)?$/, async (msg) => {
   rememberManager(msg);
-  await bot.sendMessage(
-    msg.chat.id,
-    `${generateReply("hi")}\n\n${generateReply("help")}\n\nTry: "how big can my party be?", "today's specials", "to go order".\n\n---\n${managerHelp()}`
-  );
+  const opening = generateReply("hi");
+  appendChatMessage(msg.chat.id, { role: "model", content: opening });
+  await bot.sendMessage(msg.chat.id, opening);
 });
 
 bot.onText(/^\/help(?:@\w+)?$/, async (msg) => {
@@ -862,10 +868,13 @@ async function escalateToManagers(msg, meta = {}) {
     meta.partySize ?? extractPartySize(msg.text) ?? null;
 
   setSession(chatId, null);
-  const reply = composeEscalationReply(msg.text, {
-    language: lang,
-    partySize,
-  });
+  const reply = openCall(
+    chatId,
+    composeEscalationReply(msg.text, {
+      language: lang,
+      partySize,
+    })
+  );
   appendChatMessage(chatId, { role: "user", content: msg.text });
   appendChatMessage(chatId, { role: "model", content: reply });
   await bot.sendMessage(chatId, reply.slice(0, 4000));
@@ -996,7 +1005,7 @@ async function startReservationWizard(chatId, hints = {}, msg = null) {
     lang === "es"
       ? ES.resDemoNote
       : "(Demo reservation — I'll confirm with you here. Type cancel to stop.)";
-  await bot.sendMessage(chatId, `${prompt}\n\n${note}`);
+  await bot.sendMessage(chatId, openCall(chatId, `${prompt}\n\n${note}`));
 }
 
 async function startOrderWizard(chatId) {
@@ -1004,9 +1013,12 @@ async function startOrderWizard(chatId) {
   setSession(chatId, { type: "order", step: "name", data: {} });
   await bot.sendMessage(
     chatId,
-    lang === "es"
-      ? ES.orderStart(restaurant.orderOnlineUrl)
-      : `To-go order — name for the order?\n(Or order online: ${restaurant.orderOnlineUrl})\nType cancel to stop.`
+    openCall(
+      chatId,
+      lang === "es"
+        ? ES.orderStart(restaurant.orderOnlineUrl)
+        : `To-go order — name for the order?\n(Or order online: ${restaurant.orderOnlineUrl})\nType cancel to stop.`
+    )
   );
 }
 
@@ -1341,8 +1353,9 @@ bot.on("message", async (msg) => {
         ? hoursReplyLanguage(msg.text, lang)
         : lang;
       setChatLang(chatId, hoursLang);
-      const structured = composeMultiPartReply(msg.text, { language: hoursLang });
-      if (structured) {
+      const multi = composeMultiPartReply(msg.text, { language: hoursLang });
+      if (multi) {
+        const structured = openCall(chatId, multi);
         appendChatMessage(chatId, { role: "user", content: msg.text });
         appendChatMessage(chatId, { role: "model", content: structured });
         console.log(`[TG] MULTI intent → ${hoursLang}`);
@@ -1356,7 +1369,7 @@ bot.on("message", async (msg) => {
       setSession(chatId, null);
       const hoursLang = hoursReplyLanguage(msg.text, lang);
       setChatLang(chatId, hoursLang);
-      const hoursReply = hoursAnswer(hoursLang, { text: msg.text });
+      const hoursReply = openCall(chatId, hoursAnswer(hoursLang, { text: msg.text }));
       appendChatMessage(chatId, { role: "user", content: msg.text });
       appendChatMessage(chatId, { role: "model", content: hoursReply });
       console.log(`[TG] HOURS intent → ${hoursLang}`);
@@ -1368,17 +1381,18 @@ bot.on("message", async (msg) => {
     if (asksDishAllergen(msg.text) && !needsManagerEscalation(msg.text)) {
       const allergenReply = dishAllergenReply(msg.text, lang);
       if (allergenReply) {
+        const out = openCall(chatId, allergenReply);
         appendChatMessage(chatId, { role: "user", content: msg.text });
-        appendChatMessage(chatId, { role: "model", content: allergenReply });
+        appendChatMessage(chatId, { role: "model", content: out });
         console.log(`[TG] DISH allergen intent → ${lang}`);
-        await bot.sendMessage(chatId, allergenReply.slice(0, 4000));
+        await bot.sendMessage(chatId, out.slice(0, 4000));
         return;
       }
     }
 
     // Kids menu: exactly ONE side; don't volunteer 86'd sides
     if (asksKidsMeal(msg.text) && !needsManagerEscalation(msg.text)) {
-      const kidsReply = kidsMealReply(msg.text, lang);
+      const kidsReply = openCall(chatId, kidsMealReply(msg.text, lang));
       appendChatMessage(chatId, { role: "user", content: msg.text });
       appendChatMessage(chatId, { role: "model", content: kidsReply });
       console.log(`[TG] KIDS meal/sides intent → ${lang}`);
@@ -1398,7 +1412,7 @@ bot.on("message", async (msg) => {
 
     // Greeting switches language instantly: "Hola" → Spanish, "Hi/Hey/Hello" → English
     if (isPureGreeting(msg.text)) {
-      const welcome = generateReply(msg.text, { language: lang });
+      const welcome = openCall(chatId, generateReply(msg.text, { language: lang }));
       appendChatMessage(chatId, { role: "user", content: msg.text });
       appendChatMessage(chatId, { role: "model", content: welcome });
       console.log(`[TG] language switch → ${lang} (greeting)`);
@@ -1422,8 +1436,9 @@ bot.on("message", async (msg) => {
         (asksGlutenLike(msg.text) || partySizeHint != null));
 
     if (multiPartAsk) {
-      const structured = composeMultiPartReply(msg.text, { language: lang });
-      if (structured) {
+      const composed = composeMultiPartReply(msg.text, { language: lang });
+      if (composed) {
+        const structured = openCall(chatId, composed);
         appendChatMessage(chatId, { role: "user", content: msg.text });
         appendChatMessage(chatId, { role: "model", content: structured });
         await bot.sendMessage(chatId, structured.slice(0, 4000));
@@ -1435,14 +1450,17 @@ bot.on("message", async (msg) => {
         return;
       }
       const fallback = generateReply(msg.text, { language: lang });
-      const localized = lang === "es" ? await translateToSpanish(fallback) : fallback;
+      const localized = openCall(
+        chatId,
+        lang === "es" ? await translateToSpanish(fallback) : fallback
+      );
       appendChatMessage(chatId, { role: "model", content: localized });
       await bot.sendMessage(chatId, localized);
       return;
     }
 
     if (asksHappyHour(msg.text)) {
-      const hh = happyHourAnswer(lang);
+      const hh = openCall(chatId, happyHourAnswer(lang));
       appendChatMessage(chatId, { role: "user", content: msg.text });
       appendChatMessage(chatId, { role: "model", content: hh });
       await bot.sendMessage(chatId, hh);
@@ -1454,9 +1472,10 @@ bot.on("message", async (msg) => {
       language: lang,
     });
     if (pastSpecialReply) {
+      const out = openCall(chatId, pastSpecialReply);
       appendChatMessage(chatId, { role: "user", content: msg.text });
-      appendChatMessage(chatId, { role: "model", content: pastSpecialReply });
-      await bot.sendMessage(chatId, pastSpecialReply.slice(0, 4000));
+      appendChatMessage(chatId, { role: "model", content: out });
+      await bot.sendMessage(chatId, out.slice(0, 4000));
       return;
     }
 
@@ -1513,10 +1532,12 @@ bot.on("message", async (msg) => {
         msg.text
       )
     ) {
-      const soldMsg =
+      const soldMsg = openCall(
+        chatId,
         lang === "es"
           ? ES.soldOut(hits.map((h) => h.name).join(", "), restaurant.menuUrl)
-          : `We're sold out of ${hits.map((h) => h.name).join(", ")} for the day.\n(Demo 86 board — later this can sync from the restaurant count system.)\nMenu: ${restaurant.menuUrl}`;
+          : `We're sold out of ${hits.map((h) => h.name).join(", ")} for the day.\n(Demo 86 board — later this can sync from the restaurant count system.)\nMenu: ${restaurant.menuUrl}`
+      );
       await bot.sendMessage(chatId, soldMsg);
       return;
     }
@@ -1537,6 +1558,7 @@ bot.on("message", async (msg) => {
         .join(", ")}`;
     }
     if (lang === "es") reply = await translateToSpanish(reply);
+    reply = openCall(chatId, reply);
     appendChatMessage(chatId, { role: "model", content: reply });
     await bot.sendMessage(chatId, reply);
   } catch (err) {

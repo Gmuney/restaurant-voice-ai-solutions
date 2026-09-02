@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { KNOWLEDGE_DIR } from "../paths.js";
 import { getSoldOut } from "../store.js";
-import { hasClearSpanish, isTexasEnglishSlang } from "./language.js";
+import { hasClearSpanish, isPureGreeting, isTexasEnglishSlang } from "./language.js";
 import { asksDishAllergen, dishAllergenReply } from "./dish-allergen.js";
 
 const restaurant = JSON.parse(
@@ -34,6 +34,29 @@ const ALLERGY_DISCLAIMER_ES =
 const MANAGER_OPTION =
   restaurant.policies?.managerOption ||
   `If you need something custom, ask for a manager when you call or arrive — or call ${restaurant.phone}.`;
+
+const HOST_NAME = restaurant.hostName || "Shelly";
+const CALL_OPENING_TEXT =
+  "Thank you for calling Fish City Grill Culebra, this is Shelly. How can I help you today?";
+const CALL_OPENING = `(${CALL_OPENING_TEXT})`;
+const CALL_OPENING_ES =
+  restaurant.callOpeningEs || "¿En qué puedo ayudarle hoy?";
+
+/** Automated line opening — exact English greeting in parentheses, then the host reply. */
+function withCallOpening(reply) {
+  const prefix = CALL_OPENING;
+  const body = String(reply || "").trim();
+  if (!body) return prefix;
+  if (body.startsWith(prefix)) return body;
+  if (body === CALL_OPENING_TEXT) return prefix;
+  return `${prefix}\n\n${body}`;
+}
+
+/** First-turn greeting: automated English line, then host continue in the guest language. */
+function greetingReply(lang = "en") {
+  if (lang === "es") return withCallOpening(CALL_OPENING_ES);
+  return CALL_OPENING;
+}
 
 /** Online booking allowed for parties of 1..MAX; parties of (MAX+1)+ must call management. */
 const LARGE_PARTY_MIN = MAX_ONLINE_PARTY + 1; // 8 when max online is 7
@@ -1157,25 +1180,21 @@ function managerFallbackAnswer(knownBits = []) {
  * Pass { language: "es" } for Spanish greetings / unsure fallbacks (FAQ answers may still be EN; caller can translate).
  */
 export function generateReply(rawMessage, opts = {}) {
+  return withCallOpening(generateReplyBody(rawMessage, opts));
+}
+
+function generateReplyBody(rawMessage, opts = {}) {
   const lang = opts.language === "es" ? "es" : "en";
   const text = String(rawMessage || "").trim();
   if (!text) {
-    return lang === "es"
-      ? `¡Hola! Has contactado a ${restaurant.name}. Pregunta por horarios, menú, especiales, alergias, reservaciones, para llevar, catering y más. Escribe AYUDA para opciones.`
-      : `Hey! You've reached ${restaurant.name}. Ask about hours, menu, specials, allergies, reservations, to-go, catering, and more. Text HELP for options.`;
+    return greetingReply(lang);
   }
 
   const lower = text.toLowerCase();
 
   // Only pure greetings — NOT "hey we have a party of 10…"
-  if (
-    /^(hi|hey|hello|yo|good (morning|afternoon|evening)|hola|buenas|buenos d[ií]as|buenas tardes|buenas noches)([.!?]*)?$/i.test(
-      lower
-    )
-  ) {
-    return lang === "es"
-      ? `¡Hola! ¿En qué puedo ayudarte hoy?`
-      : `Hello! How can I help you today?`;
+  if (isPureGreeting(text)) {
+    return greetingReply(lang);
   }
 
   // Direct HOURS / close tonight — never help/options menu; language matches the guest
@@ -1341,6 +1360,12 @@ export {
   asksPastSpecial,
   isLargeOnlineParty,
   MAX_ONLINE_PARTY,
+  HOST_NAME,
+  CALL_OPENING,
+  CALL_OPENING_TEXT,
+  CALL_OPENING_ES,
+  withCallOpening,
+  greetingReply,
   ALLERGY_DISCLAIMER,
   ALLERGY_DISCLAIMER_ES,
   ensureSingleAllergyDisclaimer,

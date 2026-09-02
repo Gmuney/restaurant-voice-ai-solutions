@@ -3,6 +3,8 @@ import {
   faq,
   MAX_ONLINE_PARTY,
   ALLERGY_DISCLAIMER,
+  CALL_OPENING,
+  CALL_OPENING_ES,
   composeEscalationReply,
   closingHoursAnswer,
   closingClockForDay,
@@ -37,6 +39,10 @@ console.log("allergyDisclaimer:", ALLERGY_DISCLAIMER);
 console.log("---");
 for (const c of samples) {
   const a = generateReply(c);
+  if (!a.startsWith(CALL_OPENING)) {
+    console.error(`FAIL every reply must start with the mandated greeting: ${c}`);
+    process.exitCode = 1;
+  }
   console.log("Q:", c);
   console.log("A:", a);
   if (/\ballerg|gluten|shellfish|dairy|nut\b/i.test(c)) {
@@ -46,6 +52,39 @@ for (const c of samples) {
     );
   }
   console.log("---");
+}
+
+const CALL_OPENING_LINE =
+  "(Thank you for calling Fish City Grill Culebra, this is Shelly. How can I help you today?)";
+if (CALL_OPENING !== CALL_OPENING_LINE) {
+  console.error("FAIL call opening must be the exact parenthetical Shelly line");
+  process.exitCode = 1;
+}
+for (const greet of ["hi", "hello", "hey", "howdy", "good morning", ""]) {
+  const reply = generateReply(greet);
+  if (reply !== CALL_OPENING_LINE) {
+    console.error(`FAIL opening for "${greet}": expected exact parenthetical greeting`);
+    console.error("GOT:", reply);
+    process.exitCode = 1;
+  } else {
+    console.log(`PASS call opening: ${greet || "(empty)"}`);
+  }
+}
+const hola = generateReply("hola", { language: "es" });
+if (!hola.startsWith(CALL_OPENING_LINE) || !hola.includes(CALL_OPENING_ES)) {
+  console.error("FAIL Spanish opening must prefix the English line, then continue in Spanish");
+  console.error("GOT:", hola);
+  process.exitCode = 1;
+} else {
+  console.log("PASS Spanish call opening prefixes English line");
+}
+const kidsPrefixed = generateReply("kids menu");
+if (!kidsPrefixed.startsWith(CALL_OPENING_LINE) || !kidsPrefixed.includes("Kids Fish Sticks")) {
+  console.error("FAIL every kids-menu reply must start with the mandated greeting, then the answer");
+  console.error("GOT:", kidsPrefixed);
+  process.exitCode = 1;
+} else {
+  console.log("PASS every response prefixes the mandated greeting");
 }
 
 const KIDS_ENTREES =
@@ -146,8 +185,8 @@ function assertDishAllergen(label, reply, statusLine) {
   const statusAt = reply.indexOf(statusLine);
   const discAt = reply.indexOf(ALLERGY_DISCLAIMER);
   const sidesAt = reply.indexOf(SIDE_SWAP_BRIEF);
-  if (statusAt !== 0) {
-    console.error(`FAIL ${label}: must lead with dish status`);
+  if (!reply.startsWith(CALL_OPENING_LINE) || statusAt === -1 || statusAt < CALL_OPENING_LINE.length) {
+    console.error(`FAIL ${label}: must start with the mandated greeting, then dish status`);
     console.error("GOT:", reply);
     process.exitCode = 1;
     return;
@@ -190,7 +229,8 @@ const FRIED_SHRIMP_SIDES =
 
 const friedShrimpDairy = generateReply("Does the fried shrimp have dairy?");
 if (
-  friedShrimpDairy.indexOf(FRIED_SHRIMP_DAIRY) !== 0 ||
+  !friedShrimpDairy.startsWith(CALL_OPENING_LINE) ||
+  friedShrimpDairy.indexOf(FRIED_SHRIMP_DAIRY) < CALL_OPENING_LINE.length ||
   !friedShrimpDairy.includes(FRIED_SHRIMP_SIDES)
 ) {
   console.error("FAIL fried shrimp dairy: buttermilk + grilled/blackened + hush puppy swap");
@@ -289,8 +329,9 @@ const cocinaHoy = generateReply(
   { language: "es" }
 );
 if (
-  !/^Como hoy es (lunes|martes|miércoles|jueves|viernes|sábado|domingo), nuestra cocina y restaurante cierran a las (9:00 PM|10:00 PM) esta noche\.$/.test(
-    cocinaHoy.trim()
+  !cocinaHoy.startsWith(CALL_OPENING_LINE) ||
+  !/Como hoy es (lunes|martes|miércoles|jueves|viernes|sábado|domingo), nuestra cocina y restaurante cierran a las (9:00 PM|10:00 PM) esta noche\./.test(
+    cocinaHoy
   )
 ) {
   console.error("FAIL Spanish kitchen hours should use today + esta noche");
@@ -316,11 +357,15 @@ if (
   console.error("FAIL Spanish multi-intent must answer hours AND side swap in Spanish");
   console.error("GOT:", spanishMulti);
   process.exitCode = 1;
+} else if (!spanishMulti.startsWith(CALL_OPENING_LINE)) {
+  console.error("FAIL Spanish multi-intent must start with the mandated greeting");
+  console.error("GOT:", spanishMulti);
+  process.exitCode = 1;
 } else if (
   spanishMulti.indexOf("Como hoy es") >
   spanishMulti.search(/cambiar cualquier guarnición|podemos cambiar/i)
 ) {
-  console.error("FAIL Spanish multi-intent should lead with closing hours");
+  console.error("FAIL Spanish multi-intent should lead with closing hours after the greeting");
   console.error("GOT:", spanishMulti);
   process.exitCode = 1;
 } else {
@@ -329,8 +374,9 @@ if (
 
 const closeTonight = generateReply("What time do y'all close tonight?");
 if (
-  !/^Since today is (Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), our kitchen and restaurant close at (9:00 PM|10:00 PM) tonight!$/.test(
-    closeTonight.trim()
+  !closeTonight.startsWith(CALL_OPENING_LINE) ||
+  !/Since today is (Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), our kitchen and restaurant close at (9:00 PM|10:00 PM) tonight!/.test(
+    closeTonight
   )
 ) {
   console.error("FAIL close tonight should use today's weekday and close time");

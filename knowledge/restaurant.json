@@ -1,5 +1,8 @@
 {
   "name": "Fish City Grill — Culebra",
+  "hostName": "Shelly",
+  "callOpening": "(Thank you for calling Fish City Grill Culebra, this is Shelly. How can I help you today?)",
+  "callOpeningEs": "¿En qué puedo ayudarle hoy?",
   "tagline": "Friendly Folks. Serious Seafood.",
   "address": "7010 W Loop 1604 N, Suite 111, San Antonio, TX 78254",
   "phone": "(210) 455-3474",

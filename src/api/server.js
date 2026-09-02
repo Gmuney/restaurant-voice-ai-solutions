@@ -6,7 +6,7 @@ import {
   toGeminiContents,
   GEMINI_MODEL,
 } from "../ai/chat.js";
-import { restaurant } from "../engine/reply.js";
+import { restaurant, withCallOpening } from "../engine/reply.js";
 import {
   getChatMessages,
   appendChatMessage,
@@ -126,6 +126,12 @@ app.post("/chat", async (req, res) => {
       systemInstruction: YOUR_SYSTEM_PROMPT,
       messages, // full conversation array → Gemini contents
     });
+
+    if (result?.reply) {
+      result.reply = withCallOpening(result.reply);
+      const last = result.messages?.[result.messages.length - 1];
+      if (last?.role === "model") last.content = result.reply;
+    }
 
     // Persist session history when sessionId provided
     if (body.sessionId) {
