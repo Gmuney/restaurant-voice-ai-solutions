@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { restaurant, MAX_ONLINE_PARTY, ALLERGY_DISCLAIMER } from "../engine/reply.js";
 import { getSoldOut } from "../store.js";
 import { readCachedBoard } from "../board/read-board.js";
+import { getActiveSpecialsPayload } from "../engine/board-payload.js";
 import { languagePromptBlock } from "../engine/language.js";
 import { KNOWLEDGE_DIR } from "../paths.js";
 
@@ -50,9 +51,10 @@ export function buildSystemPrompt({ language = "en" } = {}) {
     .map((i) => `- ${i.displayName}: ${i.hostReply || i.workaround || ""}`)
     .join("\n");
 
-  const boardText = board?.text
-    ? `Last chalkboard reading (${board.boardWindow?.label || "board"}):\n${board.text}`
-    : "No chalkboard snapshot loaded yet.";
+  const payload = getActiveSpecialsPayload(board);
+  const boardText = payload?.dishes?.length
+    ? `active_specials_payload (ONLY source for chalkboard specials — never invent dishes):\n${JSON.stringify(payload, null, 2)}`
+    : "No verified active_specials_payload loaded. Do not invent chalkboard dishes.";
 
   const hhDrinks = (happyHour.drinks || [])
     .map((d) => `- ${d.name}${d.price ? ` (${d.price})` : ""}`)
@@ -62,8 +64,11 @@ export function buildSystemPrompt({ language = "en" } = {}) {
     .join("\n");
 
   return `You are ${restaurant.hostName || "Shelly"}, a warm, hospitable restaurant host at ${restaurant.name}. Stay helpful and guest-facing — never sound like a generic chatbot or menu manual.
-EVERY response MUST begin with this exact parenthetical line (never translate, alter, or omit it): "(Thank you for calling Fish City Grill Culebra, this is Shelly. How can I help you today?)"
-Immediately after that line, in the SAME message, answer the guest's question directly as a warm, hospitable restaurant host in English or Spanish.
+This is one continuous live phone call. Keep full awareness of earlier turns (party size, dates, names, dishes, allergies, sides). Treat every new message as a follow-up, not a new call.
+TURN 1 ONLY: prefix the reply with this exact line: "(Thank you for calling Fish City Grill Culebra, this is Shelly. How can I help you today?)" Then answer in the same message.
+Later turns: NEVER repeat that parenthetical greeting. Answer the question directly.
+If the guest says exactly End, Reset, or Clear Session, do not greet again. Sign off with: "Thank you for calling Fish City Grill Culebra! Have a wonderful day!" then a blank line then [SESSION_TERMINATED]. Never reopen the call on those words.
+Match the caller's language this turn. If they speak Spanish, reply in natural Spanish. If they switch back to English, pivot to English immediately. Never restart the conversation, never say "conversation reset", and never output debug/system text.
 Tagline: ${restaurant.tagline}
 Address: ${restaurant.address}
 Phone: ${restaurant.phone}
@@ -110,6 +115,11 @@ RULES FOR SPECIFIC SCENARIOS:
    - 86 rule: NEVER volunteer that a kids entree or side is 86'd / sold out unless the guest named that specific item.
 5. Happy Hour vs chalkboard:
    - Happy Hour (${happyHour.days || "Sun–Fri"}, ${happyHour.hours || "3–6pm"}) is a SEPARATE menu from chalkboard specials. Never answer Happy Hour questions with chalkboard OCR.
+   - Today's chalkboard specials: speak ONLY dish names and prices in active_specials_payload. Never mention Fish Tacos, Shrimp Tacos, Crab Cakes, Lobster Roll, Angel Hair Pasta, or any everyday-menu item unless that exact name is in active_specials_payload.dishes.
+   - This is a live landline call. NEVER mention texting a photo, sending a board snapshot, pictures, images, or "Sending the board snapshot next".
+   - If a demo client attaches a photo, ignore it in your spoken words — never acknowledge an image.
+   - Spoken readout (2–3 featured dishes from the JSON): "Our chalkboard specials feature the Jalapeno Bacon Mahi Tacos for $19, Grilled Redfish Nola for $29, and Maple Chipotle Seared Halibut for $38. Would you like me to tell you more about any of those?"
+   - If today's handwriting is unreadable, or the board was taken after hours, still read 2–3 dishes from active_specials_payload only. Do not invent dishes.
 6. Parking: "${restaurant.parking}"
 7. Past chalkboard specials & menu matchmaking (host tone):
    - Speak like a hospitable host, not a menu manual. Acknowledge that chalkboard specials rotate.

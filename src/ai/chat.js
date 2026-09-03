@@ -1,7 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildSystemPrompt } from "./system-prompt.js";
-import { withCallOpening } from "../engine/reply.js";
+import {
+  applyCallOpening,
+  asksSessionReset,
+  sessionTerminatedReply,
+} from "../engine/reply.js";
 import {
   getChatMessages,
   appendChatMessage,
@@ -153,6 +157,7 @@ async function generateWithGemini(systemInstruction, messages) {
 export async function generateAiReply(chatId, userText, opts = {}) {
   const text = String(userText || "").trim();
   if (!text) return null;
+  if (asksSessionReset(text)) return sessionTerminatedReply();
 
   const language =
     opts.language ||
@@ -160,6 +165,8 @@ export async function generateAiReply(chatId, userText, opts = {}) {
       getLang: getChatLang,
       setLang: setChatLang,
     });
+
+  const initial = !getChatMessages(chatId).some((m) => m.role === "model");
 
   appendChatMessage(chatId, { role: "user", content: text });
   trimChatMessages(chatId, MAX_TURNS);
@@ -177,7 +184,7 @@ export async function generateAiReply(chatId, userText, opts = {}) {
     return null;
   }
 
-  reply = withCallOpening(reply);
+  reply = applyCallOpening(reply, initial);
 
   appendChatMessage(chatId, { role: "model", content: reply });
   trimChatMessages(chatId, MAX_TURNS);

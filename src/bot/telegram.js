@@ -19,7 +19,9 @@ import {
   answerPastSpecialOrCustomMod,
   isLargeOnlineParty,
   MAX_ONLINE_PARTY,
-  withCallOpening,
+  applyCallOpening,
+  asksSessionReset,
+  sessionTerminatedReply,
 } from "../engine/reply.js";
 import { asksDishAllergen, dishAllergenReply } from "../engine/dish-allergen.js";
 import {
@@ -45,13 +47,13 @@ import {
   pendingOrders,
   newId,
   clearChatMessages,
+  getChatMessages,
   appendChatMessage,
   getChatLang,
   setChatLang,
 } from "../store.js";
 import {
   specialsImageUrl,
-  specialsCaption,
   answerSpecialsQuestion,
   formatBoardReading,
   readCachedBoard,
@@ -83,9 +85,13 @@ function chatLanguage(chatId, text) {
   });
 }
 
-/** Every guest-facing call response starts with the mandated parenthetical greeting. */
-function openCall(_chatId, reply) {
-  return withCallOpening(reply);
+function isTurnOne(chatId) {
+  return !getChatMessages(chatId).some((m) => m.role === "model");
+}
+
+/** Prefix the mandated greeting on turn 1 only; strip it from later turns. */
+function openCall(chatId, reply) {
+  return applyCallOpening(reply, isTurnOne(chatId));
 }
 
 /** English replies stay English; Spanish guests get Spanish (AI or translated FAQ). */
@@ -180,7 +186,7 @@ function managerHelp() {
     "  After 86: bot asks if you want a restock order (YES → qty + notes).",
     "/specials · /setspecials <text> · /rereadboard",
     "/reservations — view recent bookings (demo auto-confirms, no ping) · /orders",
-    "/clearchat — reset AI conversation memory for this chat",
+    "/clearchat — End / Reset / Clear Session (sign-off, then wipe history)",
     "/managerhelp",
     "",
     'Guests: "appetizers", "entrees", "full menu", "today\'s specials", "do y\'all have trout?"',
@@ -412,48 +418,33 @@ async function fetchSpecialsBuffer(url, timeoutMs = 12000) {
   return buf;
 }
 
-async function sendSpecials(chatId, extraText = "") {
-  const cached = readCachedBoard();
-  const autoText = extraText || formatBoardReading(cached);
-
-  await bot.sendMessage(
-    chatId,
-    `${autoText || "Here's today's chalkboard specials."}\n\nSending the board snapshot photo next…`.slice(
-      0,
-      4000
-    )
-  );
-
-  const caption = specialsCaption().slice(0, 1024);
+async function sendDebugBoardPhoto(chatId) {
   try {
+    const cached = readCachedBoard();
     let buf = loadSnapshotImageBuffer(cached);
     if (!buf) {
-      console.log("[specials] no local snapshot — fetching feed once");
+      console.log("[specials] no local snapshot — fetching feed once (debug attach)");
       buf = await fetchSpecialsBuffer(specialsImageUrl());
     } else {
-      console.log(`[specials] using local snapshot ${cached.snapshotPath}`);
+      console.log(`[specials] debug photo ${cached.snapshotPath}`);
     }
     await bot.sendPhoto(
       chatId,
       buf,
-      { caption },
+      {},
       { filename: "culebra-specials.jpg", contentType: "image/jpeg" }
     );
-    console.log(`[specials] photo sent to ${chatId} (${buf.length} bytes)`);
+    console.log(`[specials] debug photo attached for ${chatId} (${buf.length} bytes)`);
   } catch (err) {
-    console.error("specials photo failed", err.message || err);
-    const saved = getSpecialsText();
-    await bot.sendMessage(
-      chatId,
-      [
-        "Couldn't load the chalkboard snapshot photo right now.",
-        saved.text ? `\nManager notes:\n${saved.text}` : null,
-        `\nYou can also call ${restaurant.phone}.`,
-      ]
-        .filter(Boolean)
-        .join("\n")
-    );
+    console.error("[specials] debug photo skipped", err.message || err);
   }
+}
+
+/** Guest hears the spoken board only. Photo attach is silent demo/debug middleware. */
+async function sendSpecials(chatId, spokenText = "") {
+  const text = String(spokenText || "").trim();
+  if (text) await bot.sendMessage(chatId, text.slice(0, 4000));
+  await sendDebugBoardPhoto(chatId);
 }
 
 bot.onText(/^\/start(?:@\w+)?$/, async (msg) => {
@@ -483,8 +474,7 @@ bot.onText(/^\/manager(?:@\w+)?/i, async (msg) => {
 
 bot.onText(/^\/clearchat(?:@\w+)?$/i, async (msg) => {
   rememberManager(msg);
-  clearChatMessages(msg.chat.id);
-  await bot.sendMessage(msg.chat.id, "Cleared AI conversation history for this chat.");
+  await terminateGuestSession(msg.chat.id);
 });
 
 bot.onText(/^\/86list(?:@\w+)?$/i, async (msg) => {
@@ -1022,14 +1012,14 @@ async function startOrderWizard(chatId) {
   );
 }
 
-const RESET_ACK =
-  "Entendido / Got it — conversation reset. How can Fish City Grill help you?";
-
-/** Explicit end/reset commands. */
-function isExplicitReset(text) {
-  return /^(end|reset|restart|start over|stop|cancel|nevermind|reiniciar|terminar|fin|olvidalo|olvídalo|cancelar todo)([.!?]*)?$/i.test(
-    String(text || "").trim()
-  );
+/** Sign off, then wipe wizards and conversation history. Never replay the call greeting. */
+async function terminateGuestSession(chatId) {
+  const reply = sessionTerminatedReply();
+  await bot.sendMessage(chatId, reply);
+  setSession(chatId, null);
+  clearChatMessages(chatId);
+  console.log(`[TG] session terminated for chat ${chatId}`);
+  return true;
 }
 
 /**
@@ -1078,16 +1068,6 @@ function isGenericTopicQuestion(text) {
   );
 }
 
-async function resetGuestConversation(chatId, msg) {
-  setSession(chatId, null);
-  clearChatMessages(chatId);
-  appendChatMessage(chatId, { role: "user", content: msg?.text || "reset" });
-  appendChatMessage(chatId, { role: "model", content: RESET_ACK });
-  await bot.sendMessage(chatId, RESET_ACK);
-  console.log(`[TG] conversation reset for chat ${chatId}`);
-  return true;
-}
-
 async function handleSessionReset(msg) {
   const chatId = msg.chat.id;
   const text = String(msg.text || "").trim();
@@ -1096,18 +1076,19 @@ async function handleSessionReset(msg) {
   // Hours intent must bypass reset ack and hit the HOURS handler
   if (asksHours(text)) return false;
 
-  if (isExplicitReset(text)) {
-    await resetGuestConversation(chatId, msg);
+  if (asksSessionReset(text)) {
+    await terminateGuestSession(chatId);
     return true;
   }
 
+  // Leave an unfinished wizard, but keep call history and answer this message.
   if (
     session &&
     ["reservation", "order", "restock"].includes(session.type) &&
     isUnrelatedGenericDuringFlow(text, session)
   ) {
-    await resetGuestConversation(chatId, msg);
-    return true;
+    setSession(chatId, null);
+    return false;
   }
 
   return false;
@@ -1412,7 +1393,13 @@ bot.on("message", async (msg) => {
 
     // Greeting switches language instantly: "Hola" → Spanish, "Hi/Hey/Hello" → English
     if (isPureGreeting(msg.text)) {
-      const welcome = openCall(chatId, generateReply(msg.text, { language: lang }));
+      const welcome = openCall(
+        chatId,
+        generateReply(msg.text, {
+          language: lang,
+          initial: isTurnOne(chatId),
+        })
+      );
       appendChatMessage(chatId, { role: "user", content: msg.text });
       appendChatMessage(chatId, { role: "model", content: welcome });
       console.log(`[TG] language switch → ${lang} (greeting)`);
@@ -1449,7 +1436,10 @@ bot.on("message", async (msg) => {
         await bot.sendMessage(chatId, aiMulti.slice(0, 4000));
         return;
       }
-      const fallback = generateReply(msg.text, { language: lang });
+      const fallback = generateReply(msg.text, {
+        language: lang,
+        initial: isTurnOne(chatId),
+      });
       const localized = openCall(
         chatId,
         lang === "es" ? await translateToSpanish(fallback) : fallback
@@ -1494,12 +1484,13 @@ bot.on("message", async (msg) => {
       return;
     }
     if (wantsChalkboardSpecials(msg.text)) {
-      const ans = await answerSpecialsQuestion(msg.text);
-      if (ans.kind === "text" && !/photo|picture|image|pic|foto\b/i.test(msg.text)) {
-        await sendGuest(chatId, ans.text, lang);
-        return;
-      }
-      await sendSpecials(chatId, ans.text);
+      const ans = await answerSpecialsQuestion(msg.text, { language: lang });
+      const spoken = openCall(chatId, ans.text);
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: spoken });
+      console.log(`[TG] SPECIALS voice readout → ${lang}`);
+      await bot.sendMessage(chatId, spoken.slice(0, 4000));
+      await sendDebugBoardPhoto(chatId);
       return;
     }
 
@@ -1551,7 +1542,10 @@ bot.on("message", async (msg) => {
 
     // FAQ fallback if Gemini is unavailable.
     // generateAiReply already stored the user turn when it attempted AI.
-    let reply = generateReply(msg.text, { language: lang });
+    let reply = generateReply(msg.text, {
+      language: lang,
+      initial: isTurnOne(chatId),
+    });
     if (getSoldOut().items.length && /\b(menu|men[uú])\b/i.test(msg.text) && !asksKidsMeal(msg.text)) {
       reply += `\n\nCurrently 86'd today: ${getSoldOut()
         .items.map((i) => i.name)

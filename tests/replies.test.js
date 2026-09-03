@@ -5,6 +5,9 @@ import {
   ALLERGY_DISCLAIMER,
   CALL_OPENING,
   CALL_OPENING_ES,
+  CALL_SIGNOFF,
+  SESSION_TERMINATED_FLAG,
+  applyCallOpening,
   composeEscalationReply,
   closingHoursAnswer,
   closingClockForDay,
@@ -39,8 +42,8 @@ console.log("allergyDisclaimer:", ALLERGY_DISCLAIMER);
 console.log("---");
 for (const c of samples) {
   const a = generateReply(c);
-  if (!a.startsWith(CALL_OPENING)) {
-    console.error(`FAIL every reply must start with the mandated greeting: ${c}`);
+  if (a.startsWith(CALL_OPENING)) {
+    console.error(`FAIL follow-up answers must not repeat the turn-1 greeting: ${c}`);
     process.exitCode = 1;
   }
   console.log("Q:", c);
@@ -78,13 +81,40 @@ if (!hola.startsWith(CALL_OPENING_LINE) || !hola.includes(CALL_OPENING_ES)) {
 } else {
   console.log("PASS Spanish call opening prefixes English line");
 }
-const kidsPrefixed = generateReply("kids menu");
-if (!kidsPrefixed.startsWith(CALL_OPENING_LINE) || !kidsPrefixed.includes("Kids Fish Sticks")) {
-  console.error("FAIL every kids-menu reply must start with the mandated greeting, then the answer");
-  console.error("GOT:", kidsPrefixed);
+const kidsLater = generateReply("kids menu");
+if (kidsLater.startsWith(CALL_OPENING_LINE) || !kidsLater.includes("Kids Fish Sticks")) {
+  console.error("FAIL turn 2+ kids menu must answer without repeating the greeting");
+  console.error("GOT:", kidsLater);
   process.exitCode = 1;
 } else {
-  console.log("PASS every response prefixes the mandated greeting");
+  console.log("PASS later turns do not repeat the greeting");
+}
+const kidsTurnOne = generateReply("kids menu", { initial: true });
+if (!kidsTurnOne.startsWith(CALL_OPENING_LINE) || !kidsTurnOne.includes("Kids Fish Sticks")) {
+  console.error("FAIL turn 1 kids menu must prefix the greeting, then answer");
+  console.error("GOT:", kidsTurnOne);
+  process.exitCode = 1;
+} else {
+  console.log("PASS turn 1 prefixes the greeting then answers");
+}
+const hiLater = generateReply("hi", { initial: false });
+if (hiLater.includes(CALL_OPENING_LINE) || /conversation reset/i.test(hiLater)) {
+  console.error("FAIL later greeting must not repeat the opening or emit reset debug text");
+  console.error("GOT:", hiLater);
+  process.exitCode = 1;
+} else {
+  console.log("PASS later greeting has no opening and no reset debug text");
+}
+const strippedRepeat = applyCallOpening(
+  `${CALL_OPENING_LINE}\n\nSince today is Tuesday, our kitchen and restaurant close at 9:00 PM tonight!`,
+  false
+);
+if (strippedRepeat.startsWith(CALL_OPENING_LINE) || !strippedRepeat.includes("Since today is Tuesday")) {
+  console.error("FAIL later turns must strip a repeated opening");
+  console.error("GOT:", strippedRepeat);
+  process.exitCode = 1;
+} else {
+  console.log("PASS later turns strip a repeated opening");
 }
 
 const KIDS_ENTREES =
@@ -185,8 +215,8 @@ function assertDishAllergen(label, reply, statusLine) {
   const statusAt = reply.indexOf(statusLine);
   const discAt = reply.indexOf(ALLERGY_DISCLAIMER);
   const sidesAt = reply.indexOf(SIDE_SWAP_BRIEF);
-  if (!reply.startsWith(CALL_OPENING_LINE) || statusAt === -1 || statusAt < CALL_OPENING_LINE.length) {
-    console.error(`FAIL ${label}: must start with the mandated greeting, then dish status`);
+  if (statusAt !== 0) {
+    console.error(`FAIL ${label}: must lead with dish status`);
     console.error("GOT:", reply);
     process.exitCode = 1;
     return;
@@ -229,8 +259,7 @@ const FRIED_SHRIMP_SIDES =
 
 const friedShrimpDairy = generateReply("Does the fried shrimp have dairy?");
 if (
-  !friedShrimpDairy.startsWith(CALL_OPENING_LINE) ||
-  friedShrimpDairy.indexOf(FRIED_SHRIMP_DAIRY) < CALL_OPENING_LINE.length ||
+  friedShrimpDairy.indexOf(FRIED_SHRIMP_DAIRY) !== 0 ||
   !friedShrimpDairy.includes(FRIED_SHRIMP_SIDES)
 ) {
   console.error("FAIL fried shrimp dairy: buttermilk + grilled/blackened + hush puppy swap");
@@ -329,9 +358,8 @@ const cocinaHoy = generateReply(
   { language: "es" }
 );
 if (
-  !cocinaHoy.startsWith(CALL_OPENING_LINE) ||
-  !/Como hoy es (lunes|martes|miércoles|jueves|viernes|sábado|domingo), nuestra cocina y restaurante cierran a las (9:00 PM|10:00 PM) esta noche\./.test(
-    cocinaHoy
+  !/^Como hoy es (lunes|martes|miércoles|jueves|viernes|sábado|domingo), nuestra cocina y restaurante cierran a las (9:00 PM|10:00 PM) esta noche\.$/.test(
+    cocinaHoy.trim()
   )
 ) {
   console.error("FAIL Spanish kitchen hours should use today + esta noche");
@@ -357,15 +385,15 @@ if (
   console.error("FAIL Spanish multi-intent must answer hours AND side swap in Spanish");
   console.error("GOT:", spanishMulti);
   process.exitCode = 1;
-} else if (!spanishMulti.startsWith(CALL_OPENING_LINE)) {
-  console.error("FAIL Spanish multi-intent must start with the mandated greeting");
+} else if (spanishMulti.startsWith(CALL_OPENING_LINE)) {
+  console.error("FAIL Spanish multi-intent follow-up must not repeat the greeting");
   console.error("GOT:", spanishMulti);
   process.exitCode = 1;
 } else if (
   spanishMulti.indexOf("Como hoy es") >
   spanishMulti.search(/cambiar cualquier guarnición|podemos cambiar/i)
 ) {
-  console.error("FAIL Spanish multi-intent should lead with closing hours after the greeting");
+  console.error("FAIL Spanish multi-intent should lead with closing hours");
   console.error("GOT:", spanishMulti);
   process.exitCode = 1;
 } else {
@@ -374,9 +402,8 @@ if (
 
 const closeTonight = generateReply("What time do y'all close tonight?");
 if (
-  !closeTonight.startsWith(CALL_OPENING_LINE) ||
-  !/Since today is (Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), our kitchen and restaurant close at (9:00 PM|10:00 PM) tonight!/.test(
-    closeTonight
+  !/^Since today is (Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday), our kitchen and restaurant close at (9:00 PM|10:00 PM) tonight!$/.test(
+    closeTonight.trim()
   )
 ) {
   console.error("FAIL close tonight should use today's weekday and close time");
@@ -426,4 +453,35 @@ if (
   process.exitCode = 1;
 } else {
   console.log("PASS dual close+party hours first");
+}
+
+const SESSION_TERMINATED_PAYLOAD = `${CALL_SIGNOFF}\n\n${SESSION_TERMINATED_FLAG}`;
+for (const trigger of ["End", "Reset", "Clear Session", "end.", "clear session"]) {
+  const ended = generateReply(trigger, { initial: true });
+  if (ended !== SESSION_TERMINATED_PAYLOAD) {
+    console.error(`FAIL "${trigger}" must be the phone sign-off plus [SESSION_TERMINATED]`);
+    console.error("GOT:", ended);
+    process.exitCode = 1;
+  } else if (ended.includes(CALL_OPENING_LINE) || ended.includes("Shelly. How can I help")) {
+    console.error(`FAIL "${trigger}" must not replay the call greeting`);
+    process.exitCode = 1;
+  } else {
+    console.log(`PASS session terminate: ${trigger}`);
+  }
+}
+const wrappedEnd = applyCallOpening(SESSION_TERMINATED_PAYLOAD, true);
+if (wrappedEnd !== SESSION_TERMINATED_PAYLOAD || wrappedEnd.startsWith(CALL_OPENING_LINE)) {
+  console.error("FAIL terminated payload must never get the turn-1 greeting wrapper");
+  console.error("GOT:", wrappedEnd);
+  process.exitCode = 1;
+} else {
+  console.log("PASS terminated payload is not wrapped with the greeting");
+}
+const notReset = generateReply("what time does the kitchen close at the end of the night?");
+if (notReset.includes(SESSION_TERMINATED_FLAG) || notReset.startsWith(CALL_SIGNOFF)) {
+  console.error("FAIL incidental 'end' in a question must not terminate the session");
+  console.error("GOT:", notReset);
+  process.exitCode = 1;
+} else {
+  console.log("PASS incidental end does not terminate the session");
 }

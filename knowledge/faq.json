@@ -341,7 +341,7 @@
         "daily special",
         "today's special"
       ],
-      "answer": "Chalkboard / daily specials are separate from the everyday menu. Ask \"today's specials\" for the live board photo. Everyday items: https://fishcitygrill.olo.com/menu/fish-city-grill-culebra"
+      "answer": "Chalkboard / daily specials are separate from the everyday menu. Ask about today's specials and I'll read the featured board dishes for you. Everyday items: https://fishcitygrill.olo.com/menu/fish-city-grill-culebra"
     },
     {
       "id": "oysters",
@@ -1001,7 +1001,7 @@
       "includes": [
         "lunch special"
       ],
-      "answer": "Ask about lunch specials / the chalkboard when you come in, or ask \"today's specials\" here for the board photo."
+      "answer": "Ask about lunch specials / the chalkboard when you come in, or ask about today's specials and I'll read the featured board dishes for you."
     },
     {
       "id": "raw-fish-safe",

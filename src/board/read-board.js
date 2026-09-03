@@ -4,6 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { restaurant } from "../engine/reply.js";
 import { DATA_DIR } from "../paths.js";
+import {
+  looksGenericMenuFallback,
+  buildActiveSpecialsPayload,
+} from "../engine/board-payload.js";
+
+export { looksGenericMenuFallback };
 
 const SNAP_DIR = join(DATA_DIR, "board-snapshots");
 const CACHE_FILE = join(DATA_DIR, "board-reading.json");
@@ -25,7 +31,7 @@ DISH NAME — $price
   ingredient, ingredient, sauce, side, …
 
 Rules:
-- Copy only what is written on THIS board. Do NOT invent dishes or ingredients.
+- Copy ONLY handwritten chalk visible on THIS board. If a word is low-confidence, write [unclear] or omit the dish — NEVER substitute everyday menu items (Lobster Roll, Angel Hair Pasta, Fish Tacos, Shrimp Tacos, Crab Cakes, burgers, fajitas, etc.).
 - Do NOT invent a Monday–Sunday weekly specials menu.
 - Do NOT invent pulled pork, fajitas, burgers, ribeye, or generic bar food unless clearly written.
 - Keep each dish's small ingredient line indented under that dish.
@@ -37,7 +43,7 @@ Rules:
 const RETRY_PROMPT = `STRICT OCR retry. This is Fish City Grill seafood specials chalk.
 
 Read the real handwritten dish names (large colored chalk) and the small ingredient/sides line under each.
-Output ONLY what you see. No Monday–Sunday template. No invented menu.
+Output ONLY what you see. No Monday–Sunday template. No invented menu. Never guess Lobster Roll, Angel Hair Pasta, Fish Tacos, Shrimp Tacos, Crab Cakes, or other everyday items for unreadable chalk.
 
 Format:
 DISH NAME — $price
@@ -53,10 +59,10 @@ Format:
 DISH NAME — $price
   ingredients, sauces, sides
 
-Rules: copy only visible chalk. Do not invent. No weekly Mon–Sun menu. Output only the transcription.`;
+Rules: copy only visible chalk. If unsure, [unclear] or skip — do not invent Lobster Roll, Angel Hair Pasta, Fish Tacos, Shrimp Tacos, Crab Cakes, or other menu items. No weekly Mon–Sun menu. Output only the transcription.`;
 
 /** Reject invented menus (Gemma often fabricates bar food / weekly specials). */
-function looksHallucinated(text) {
+export function looksHallucinated(text) {
   if (!text || text.trim().length < 40) return true;
   const dayHits = [
     "monday",
@@ -68,16 +74,50 @@ function looksHallucinated(text) {
     "sunday",
   ].filter((d) => text.toLowerCase().includes(d)).length;
   if (dayHits >= 3) return true;
-  if (
-    /pulled pork|chicken fajitas|chicken tenders|loaded fries|bbq ribs|ribeye steak|burger\s*&\s*fries|shrimp po'? ?boy|bbq pulled pork|poker shrimp|fish tasty|hushpuppy|polo shrimp|cevich|angelhauser|big fish platter|seafood shack|coconut rice,\s*grilled asparagus/i.test(
-      text
-    )
-  ) {
-    return true;
-  }
+  if (looksGenericMenuFallback(text)) return true;
   // Generic soda list with no real chalk sides is a common invent
   if (/soda,\s*iced tea,\s*lemonade/i.test(text)) return true;
+  const unclear = (String(text).match(/\[unclear\]/gi) || []).length;
+  if (unclear >= 4) return true;
   return false;
+}
+
+function pricedDishLineCount(text) {
+  let n = 0;
+  for (const raw of String(text || "").split(/\n/)) {
+    const line = raw.trim();
+    if (!line || /^drinks?\b/i.test(line)) continue;
+    if (/^\s+/.test(raw) && !/\$\d{2,3}\b/.test(line)) continue;
+    if (!/(?:[—–\-:]+|\s)\s*\$?\s*\d{2,3}\b/.test(line)) continue;
+    if (/\[unclear\]/i.test(line) || looksGenericMenuFallback(line)) continue;
+    n += 1;
+  }
+  return n;
+}
+
+/** True when we should not treat this OCR as today's specials. */
+export function isLowConfidenceOcr(text) {
+  if (!String(text || "").trim()) return true;
+  if (looksGenericMenuFallback(text)) return true;
+  if (pricedDishLineCount(text) < 1) return true;
+  if (looksHallucinated(text) && pricedDishLineCount(text) < 2) return true;
+  const unclear = (String(text).match(/\[unclear\]/gi) || []).length;
+  if (unclear >= 4 && pricedDishLineCount(text) < 2) return true;
+  return false;
+}
+
+export function getVerifiedBoardPayload(cache) {
+  const v = cache?.verified;
+  if (v?.text && !isLowConfidenceOcr(v.text)) return v;
+  if (cache?.text && !isLowConfidenceOcr(cache.text) && !cache?.ocrFallback) {
+    return {
+      text: cache.text,
+      readAt: cache.readAt,
+      boardWindow: cache.boardWindow,
+      snapshotPath: cache.snapshotPath,
+    };
+  }
+  return null;
 }
 
 function ensureDirs() {
@@ -150,6 +190,8 @@ export function readCachedBoard() {
 
 function writeCache(data) {
   ensureDirs();
+  const payload = buildActiveSpecialsPayload(data);
+  if (payload?.dishes?.length) data.active_specials_payload = payload;
   writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2) + "\n");
 }
 
@@ -392,16 +434,19 @@ export async function snapshotBoard(windowName) {
   writeFileSync(snapPath, image.buf);
   console.log(`[board] saved ${snapPath} (${image.buf.length} bytes)`);
 
-  // Persist photo immediately so the bot can serve it even if OCR fails
+  // Persist today's photo immediately; keep last verified OCR if this read fails
   const prev = readCachedBoard();
+  const prevVerified = getVerifiedBoardPayload(prev);
   let cache = {
-    text: prev?.text || "",
-    source: prev?.source || "pending-ocr",
+    text: "",
+    source: "pending-ocr",
     readAt: new Date().toISOString(),
     imageEtag: image.etag,
     imageLastModified: image.lastModified,
     imageUrl: image.url,
     snapshotPath: snapPath,
+    ocrFallback: true,
+    verified: prevVerified,
     boardWindow: {
       dateKey: parts.dateKey,
       window,
@@ -418,23 +463,49 @@ export async function snapshotBoard(windowName) {
     console.error("[board] OCR failed (photo snapshot kept):", err.message || err);
   }
 
-  if (result?.text && !result.hallucinated) {
+  const usable =
+    result?.text && !result.hallucinated && !isLowConfidenceOcr(result.text);
+
+  if (usable) {
+    const verified = {
+      text: result.text,
+      readAt: new Date().toISOString(),
+      boardWindow: cache.boardWindow,
+      snapshotPath: snapPath,
+      source: result.source,
+    };
     cache = {
       ...cache,
       text: result.text,
       source: result.source,
-      readAt: new Date().toISOString(),
+      readAt: verified.readAt,
+      ocrFallback: false,
+      verified,
     };
     writeCache(cache);
     console.log(
       `[board] snapshot OCR done via ${cache.source} (${cache.text.length} chars)`
     );
-  } else if (result?.hallucinated) {
+  } else if (result?.hallucinated || (result?.text && isLowConfidenceOcr(result.text))) {
+    cache = {
+      ...cache,
+      ocrFallback: true,
+      verified: prevVerified,
+      text: "",
+    };
+    writeCache(cache);
     console.warn(
-      "[board] rejected hallucinated OCR — guests still get the snapshot photo + prior text if any"
+      "[board] low-confidence OCR — keeping last verified snapshot payload for guest speech"
     );
   } else {
-    console.warn("[board] no OCR text — guests still get the snapshot photo");
+    cache = {
+      ...cache,
+      ocrFallback: true,
+      verified: prevVerified,
+      text: "",
+    };
+    writeCache(cache);
+    console.warn("[board] no OCR text — last verified payload kept for guest speech");
   }
   return cache;
 }
@@ -453,11 +524,14 @@ export function loadSnapshotImageBuffer(cache = readCachedBoard()) {
 export async function getBoardReading({ force = false, forceAwait = false } = {}) {
   const cached = readCachedBoard();
   if (!force && !forceAwait) {
-    if (cached?.text) {
+    if (cached?.text || cached?.verified?.text || cached?.snapshotPath) {
       return {
         ...cached,
         fromCache: true,
         stale: !isBoardCacheFresh(cached),
+        afterHours: currentBoardWindow().window === "overnight",
+        ocrFallback:
+          cached.ocrFallback === true || isLowConfidenceOcr(cached.text || ""),
       };
     }
     return null;
@@ -480,7 +554,8 @@ export function refreshBoardReading() {
 }
 
 export function formatBoardReading(cache) {
-  if (!cache?.text) return null;
+  const text = cache?.text || cache?.verified?.text;
+  if (!text) return null;
   const when = cache.readAt
     ? new Date(cache.readAt).toLocaleString("en-US", {
         timeZone: restaurant.timezone || "America/Chicago",
@@ -499,9 +574,11 @@ export function formatBoardReading(cache) {
     `${win}`,
     `Snapshot read: ${when}${staleNote}`,
     "",
-    cache.text.trim(),
+    cache.text?.trim?.() || cache.verified?.text?.trim() || text.trim(),
     "",
-    "Includes dish names plus the smaller ingredient / sides lines under them when readable.",
+    cache.ocrFallback
+      ? "Today's handwriting was low-confidence — showing the last verified board text. Guest speech uses that verified list (no photo mention)."
+      : "Includes dish names plus the smaller ingredient / sides lines under them when readable.",
     "Board snapshots: ~11:00am lunch · ~4:30pm dinner.",
   ].join("\n");
 }
@@ -518,18 +595,35 @@ export async function reocrSnapshot(snapshotPath) {
   const ocrImage = await prepareJpegForOcr(buf);
   const result = await runBoardOcr(ocrImage, buf);
   const prev = readCachedBoard() || {};
-  if (result?.hallucinated) {
+  if (result?.hallucinated || !result?.text || isLowConfidenceOcr(result.text)) {
     console.warn(
-      "[board] re-OCR rejected as invented — leaving prior board text unchanged"
+      "[board] re-OCR low-confidence — leaving last verified snapshot payload unchanged"
     );
-    return prev;
+    const verified = getVerifiedBoardPayload(prev);
+    const cache = {
+      ...prev,
+      ocrFallback: true,
+      verified,
+      snapshotPath: path,
+    };
+    writeCache(cache);
+    return cache;
   }
+  const verified = {
+    text: result.text,
+    readAt: new Date().toISOString(),
+    boardWindow: prev.boardWindow,
+    snapshotPath: path,
+    source: result.source,
+  };
   const cache = {
     ...prev,
     text: result.text,
     source: result.source,
-    readAt: new Date().toISOString(),
+    readAt: verified.readAt,
     snapshotPath: path,
+    ocrFallback: false,
+    verified,
   };
   writeCache(cache);
   console.log(`[board] re-OCR done (${cache.text.length} chars) via ${cache.source}`);

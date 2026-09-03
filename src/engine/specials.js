@@ -5,11 +5,100 @@ import {
   formatBoardReading,
   readCachedBoard,
   isBoardCacheFresh,
+  looksGenericMenuFallback,
+  getVerifiedBoardPayload,
 } from "../board/read-board.js";
+import {
+  parseBoardDishes,
+  getActiveSpecialsPayload,
+} from "./board-payload.js";
 
-/** Pull a dish block (name + following small ingredient/sides lines) from board text. */
-function extractDishBlock(boardText, query) {
+export { parseBoardDishes, getActiveSpecialsPayload };
+
+function listSpokenItems(items) {
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function featuredDishPhrase(dishes, lang = "en") {
+  const list = (Array.isArray(dishes) ? dishes : [])
+    .filter((d) => d?.name && d?.price)
+    .slice(0, 3);
+  return list.map((d, i) => {
+    if (lang === "es") {
+      return i === 0 ? `el ${d.name} por $${d.price}` : `${d.name} por $${d.price}`;
+    }
+    return i === 0 ? `the ${d.name} for $${d.price}` : `${d.name} for $${d.price}`;
+  });
+}
+
+/**
+ * Voice readout bound to active_specials_payload dishes only (2–3 featured).
+ * Landline — never mention photos or everyday-menu fillers.
+ */
+export function spokenSpecialsReadout(dishes, lang = "en") {
+  const items = featuredDishPhrase(dishes, lang);
+  const followUp =
+    lang === "es"
+      ? "¿Quiere que le cuente más sobre alguno de esos?"
+      : "Would you like me to tell you more about any of those?";
+  if (!items.length) {
+    return lang === "es"
+      ? "Los especiales del pizarrón cambian diario. ¿Quiere que le revise algún otro platillo del menú?"
+      : "Our chalkboard specials change daily. Would you like me to check on any other menu items for you?";
+  }
+  if (lang === "es") {
+    return `Nuestros especiales del pizarrón incluyen ${listSpokenItems(items)}. ${followUp}`;
+  }
+  return `Our chalkboard specials feature ${listSpokenItems(items)}. ${followUp}`;
+}
+
+/** Same payload-bound script (after-hours / unreadable OCR still speak the JSON). */
+export function spokenUpdatingBoardReadout(dishes, lang = "en") {
+  return spokenSpecialsReadout(dishes, lang);
+}
+
+export function guestSpecialsSpeech(board, lang = "en") {
+  const payload = getActiveSpecialsPayload(board);
+  const dishes = payload?.dishes || [];
+  return {
+    mode: dishes.length ? "payload" : "empty",
+    text: spokenSpecialsReadout(dishes, lang),
+    payload,
+  };
+}
+
+export function boardSpecialsReadout(boardText, lang = "en", board = null) {
+  if (board) return guestSpecialsSpeech(board, lang).text;
+  return spokenSpecialsReadout(parseBoardDishes(boardText), lang);
+}
+
+function payloadSourceText(board, payload) {
+  const verified = getVerifiedBoardPayload(board);
+  if (verified?.text && !looksGenericMenuFallback(verified.text)) return verified.text;
+  return (payload?.dishes || [])
+    .map((d) => `${d.name} — $${d.price}${d.notes ? `\n  ${d.notes}` : ""}`)
+    .join("\n");
+}
+
+function askedGenericMissingFromPayload(query, payload) {
+  const q = String(query || "").toLowerCase();
+  const names = (payload?.dishes || []).map((d) => d.name.toLowerCase());
+  const probes = [
+    ["fish tacos", /\bfish\s+tacos?\b/i],
+    ["shrimp tacos", /\bshrimp\s+tacos?\b/i],
+    ["crab cakes", /\bcrab\s+cakes?\b/i],
+  ];
+  return probes.some(
+    ([label, re]) => re.test(q) && !names.some((n) => n.includes(label))
+  );
+}
+
+/** Pull a dish block (name + following small ingredient/sides lines) from payload-bound text. */
+function extractDishBlock(boardText, query, payload) {
   if (!boardText) return null;
+  if (askedGenericMissingFromPayload(query, payload)) return null;
   const lines = boardText.split(/\n/).map((l) => l.trimEnd());
   const words = String(query || "")
     .toLowerCase()
@@ -47,11 +136,17 @@ function extractDishBlock(boardText, query) {
   }
   if (bestIdx < 0 || bestScore < 4) return null;
 
+  const heading = lines[bestIdx].trim();
+  const onPayload = (payload?.dishes || []).some((d) =>
+    heading.toLowerCase().includes(d.name.toLowerCase())
+  );
+  if (payload?.dishes?.length && !onPayload) return null;
+  if (looksGenericMenuFallback(heading)) return null;
+
   const block = [lines[bestIdx]];
   for (let j = bestIdx + 1; j < lines.length && j < bestIdx + 5; j++) {
     const line = lines[j];
     if (!line.trim()) break;
-    // stop if next looks like a new priced dish heading
     if (/\$?\d{2,3}\b/.test(line) && !/^\s/.test(line) && j > bestIdx) break;
     if (/^[A-Z][A-Za-z].{8,}/.test(line) && /\$?\d{2}/.test(line) && j > bestIdx) break;
     block.push(line);
@@ -70,24 +165,27 @@ export function specialsCaption() {
     `Chalkboard specials — ${restaurant.name}`,
     board?.boardWindow?.label || "Scheduled board snapshot",
   ];
-  if (board?.text) {
-    lines.push("", board.text.trim().slice(0, 700));
-  }
+  const spoken = guestSpecialsSpeech(board).text;
+  if (spoken) lines.push("", spoken);
   if (saved.text) {
     lines.push("", "Manager notes:", saved.text);
   }
   return lines.join("\n");
 }
 
-export async function answerSpecialsQuestion(question) {
+export async function answerSpecialsQuestion(question, opts = {}) {
   const saved = getSpecialsText();
   const q = String(question || "").toLowerCase();
-  const wantPhotoOnly = /\b(photo|picture|image|pic)\b/i.test(q);
+  const lang = opts.language === "es" ? "es" : "en";
 
   const board = await getBoardReading({ force: false, forceAwait: false });
-  const boardText = board?.text || "";
   const managerText = saved.text || "";
-  const combined = `${boardText}\n${managerText}`.toLowerCase();
+  const speech = guestSpecialsSpeech(board, lang);
+  const payload = speech.payload || getActiveSpecialsPayload(board);
+  const sourceText = payloadSourceText(board, payload);
+  const combined = `${sourceText}\n${(payload?.dishes || [])
+    .map((d) => d.name)
+    .join("\n")}`.toLowerCase();
 
   const words = q
     .replace(/[^a-z0-9\s]/g, " ")
@@ -113,58 +211,37 @@ export async function answerSpecialsQuestion(question) {
     );
 
   const hits = words.filter((w) => combined.includes(w));
+  const dishBlock = extractDishBlock(sourceText, q, payload);
+  const askingOneDish =
+    dishBlock &&
+    (hits.length ||
+      /\b(ingredient|side|describe|about|what'?s in|come with)\b/i.test(q));
 
-  if (wantPhotoOnly) {
+  if (askingOneDish) {
     return {
-      kind: "image",
-      text: boardText
-        ? "Here's the chalkboard snapshot photo."
-        : "Here's the chalkboard photo (no text snapshot yet — a manager can /rereadboard).",
+      kind: "text",
+      text: [`From today's chalkboard:`, "", dishBlock].join("\n"),
       board,
       needsRefreshFollowUp: false,
     };
   }
 
-  if (boardText) {
-    const dishBlock = extractDishBlock(boardText, q);
-    if (dishBlock && (hits.length || /\b(ingredient|side|describe|about|what'?s in|come with)\b/i.test(q))) {
-      return {
-        kind: "text",
-        text: [
-          `From today's chalkboard:`,
-          "",
-          dishBlock,
-          "",
-          "That includes the smaller ingredient / sides lines under the dish when we could read them.",
-          'Ask "today\'s specials" for the full board.',
-        ].join("\n"),
-        board,
-        needsRefreshFollowUp: false,
-      };
-    }
-
-    let text = formatBoardReading(board);
-    if (managerText) text += `\n\nManager notes:\n${managerText}`;
-    if (hits.length) {
-      text =
-        `Looking for "${hits.join(", ")}" on the board:\n\n` +
-        (dishBlock ? `${dishBlock}\n\nFull board:\n${boardText}` : text);
-    }
+  if (askedGenericMissingFromPayload(q, payload) || (hits.length && !dishBlock && words.length)) {
+    const missing = hits.length ? hits.join(", ") : "that";
     return {
-      kind: hits.length ? "text" : "both",
-      text,
+      kind: "text",
+      text: `I don't see "${missing}" written on today's chalkboard. ${speech.text}`,
       board,
       needsRefreshFollowUp: false,
-      stale: !isBoardCacheFresh(board),
     };
   }
 
   return {
-    kind: "image",
-    text:
-      "No chalkboard snapshot is loaded yet. We normally capture the board at ~11:00am (lunch) and ~4:30pm (dinner). A manager can run /rereadboard to capture now.",
-    board: null,
+    kind: "text",
+    text: managerText ? `${speech.text}\n\nManager notes:\n${managerText}` : speech.text,
+    board,
     needsRefreshFollowUp: false,
+    stale: !isBoardCacheFresh(board),
   };
 }
 

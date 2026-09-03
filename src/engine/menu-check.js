@@ -4,6 +4,7 @@ import { restaurant, ALLERGY_DISCLAIMER, ALLERGY_DISCLAIMER_ES, hasAllergyDiscla
 import { asksDishAllergen } from "./dish-allergen.js";
 import { getSoldOut } from "../store.js";
 import { readCachedBoard } from "../board/read-board.js";
+import { getActiveSpecialsPayload } from "./board-payload.js";
 import { KNOWLEDGE_DIR } from "../paths.js";
 
 function withAllergySafety(text, lang = "en") {
@@ -209,17 +210,21 @@ function formatFullMenu() {
 
 function findOnChalkboard(item) {
   const board = readCachedBoard();
-  if (!board?.text) return null;
-  const boardLower = board.text.toLowerCase();
-  const names = [item.name, ...(item.aliases || [])].map(normalize);
-  for (const n of names) {
-    if (n.length >= 4 && boardLower.includes(n)) {
-      const line =
-        board.text
-          .split(/\n/)
-          .map((l) => l.trim())
-          .find((l) => l.toLowerCase().includes(n)) || null;
-      return { line, board };
+  const payload = getActiveSpecialsPayload(board);
+  const dishes = payload?.dishes || [];
+  if (!dishes.length) return null;
+  const names = [item.name, ...(item.aliases || [])]
+    .map(normalize)
+    .filter((n) => n.length >= 10);
+  for (const dish of dishes) {
+    const dishNorm = normalize(dish.name);
+    for (const n of names) {
+      if (dishNorm === n || dishNorm.includes(n) || n.includes(dishNorm)) {
+        return {
+          line: `${dish.name} — $${dish.price}`,
+          board,
+        };
+      }
     }
   }
   return null;

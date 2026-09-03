@@ -6,7 +6,12 @@ import {
   toGeminiContents,
   GEMINI_MODEL,
 } from "../ai/chat.js";
-import { restaurant, withCallOpening } from "../engine/reply.js";
+import {
+  restaurant,
+  applyCallOpening,
+  asksSessionReset,
+  sessionTerminatedReply,
+} from "../engine/reply.js";
 import {
   getChatMessages,
   appendChatMessage,
@@ -113,6 +118,18 @@ app.post("/chat", async (req, res) => {
       });
     }
 
+    const lastUserText = messages[messages.length - 1].content;
+    if (asksSessionReset(lastUserText)) {
+      const reply = sessionTerminatedReply();
+      if (body.sessionId) clearChatMessages(String(body.sessionId));
+      return res.json({
+        reply,
+        messages: [],
+        sessionTerminated: true,
+        model: GEMINI_MODEL,
+      });
+    }
+
     const YOUR_SYSTEM_PROMPT = buildSystemPrompt();
 
     // Debug-friendly log (no secrets): proves we are not short-circuiting to welcome text
@@ -128,7 +145,8 @@ app.post("/chat", async (req, res) => {
     });
 
     if (result?.reply) {
-      result.reply = withCallOpening(result.reply);
+      const initial = !messages.some((m) => m.role === "model");
+      result.reply = applyCallOpening(result.reply, initial);
       const last = result.messages?.[result.messages.length - 1];
       if (last?.role === "model") last.content = result.reply;
     }

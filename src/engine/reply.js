@@ -41,6 +41,19 @@ const CALL_OPENING_TEXT =
 const CALL_OPENING = `(${CALL_OPENING_TEXT})`;
 const CALL_OPENING_ES =
   restaurant.callOpeningEs || "¿En qué puedo ayudarle hoy?";
+const CALL_SIGNOFF =
+  "Thank you for calling Fish City Grill Culebra! Have a wonderful day!";
+const SESSION_TERMINATED_FLAG = "[SESSION_TERMINATED]";
+
+function asksSessionReset(text) {
+  return /^(end|reset|restart|start over|clear session|clearsession|clear_session|cancelar todo|reiniciar sesi[oó]n)([.!?]*)?$/i.test(
+    String(text || "").trim()
+  );
+}
+
+function sessionTerminatedReply() {
+  return `${CALL_SIGNOFF}\n\n${SESSION_TERMINATED_FLAG}`;
+}
 
 /** Automated line opening — exact English greeting in parentheses, then the host reply. */
 function withCallOpening(reply) {
@@ -52,10 +65,32 @@ function withCallOpening(reply) {
   return `${prefix}\n\n${body}`;
 }
 
-/** First-turn greeting: automated English line, then host continue in the guest language. */
-function greetingReply(lang = "en") {
-  if (lang === "es") return withCallOpening(CALL_OPENING_ES);
-  return CALL_OPENING;
+/** Remove the mandated greeting if a later turn (or the model) repeated it. */
+function stripCallOpening(reply) {
+  let body = String(reply || "").trim();
+  if (body.startsWith(CALL_OPENING)) {
+    body = body.slice(CALL_OPENING.length).replace(/^\s+/, "").trim();
+  }
+  if (body.startsWith(CALL_OPENING_TEXT)) {
+    body = body.slice(CALL_OPENING_TEXT.length).replace(/^\s+/, "").trim();
+  }
+  return body;
+}
+
+/** Turn 1: prefix. Later turns: never repeat the parenthetical greeting. */
+function applyCallOpening(reply, initial) {
+  const raw = String(reply || "").trim();
+  if (raw.includes(SESSION_TERMINATED_FLAG)) return raw;
+  const cleaned = stripCallOpening(raw);
+  return initial ? withCallOpening(cleaned) : cleaned;
+}
+
+/** Turn-1 greeting uses the automated line; later greetings stay in the guest language only. */
+function greetingReply(lang = "en", initial = true) {
+  if (initial) {
+    return lang === "es" ? withCallOpening(CALL_OPENING_ES) : CALL_OPENING;
+  }
+  return lang === "es" ? CALL_OPENING_ES : "How can I help you today?";
 }
 
 /** Online booking allowed for parties of 1..MAX; parties of (MAX+1)+ must call management. */
@@ -1180,21 +1215,31 @@ function managerFallbackAnswer(knownBits = []) {
  * Pass { language: "es" } for Spanish greetings / unsure fallbacks (FAQ answers may still be EN; caller can translate).
  */
 export function generateReply(rawMessage, opts = {}) {
-  return withCallOpening(generateReplyBody(rawMessage, opts));
+  const text = String(rawMessage || "").trim();
+  if (asksSessionReset(text)) {
+    return sessionTerminatedReply();
+  }
+  const isGreeting = !text || isPureGreeting(text);
+  const initial =
+    opts.initial === true || (opts.initial !== false && isGreeting);
+  const body = stripCallOpening(
+    generateReplyBody(rawMessage, { ...opts, initial })
+  );
+  return applyCallOpening(body, initial);
 }
 
 function generateReplyBody(rawMessage, opts = {}) {
   const lang = opts.language === "es" ? "es" : "en";
   const text = String(rawMessage || "").trim();
   if (!text) {
-    return greetingReply(lang);
+    return greetingReply(lang, opts.initial !== false);
   }
 
   const lower = text.toLowerCase();
 
   // Only pure greetings — NOT "hey we have a party of 10…"
   if (isPureGreeting(text)) {
-    return greetingReply(lang);
+    return greetingReply(lang, opts.initial !== false);
   }
 
   // Direct HOURS / close tonight — never help/options menu; language matches the guest
@@ -1364,7 +1409,13 @@ export {
   CALL_OPENING,
   CALL_OPENING_TEXT,
   CALL_OPENING_ES,
+  CALL_SIGNOFF,
+  SESSION_TERMINATED_FLAG,
+  asksSessionReset,
+  sessionTerminatedReply,
   withCallOpening,
+  stripCallOpening,
+  applyCallOpening,
   greetingReply,
   ALLERGY_DISCLAIMER,
   ALLERGY_DISCLAIMER_ES,

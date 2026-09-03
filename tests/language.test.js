@@ -2,8 +2,9 @@ import {
   detectMessageLanguage,
   hasClearSpanish,
   isTexasEnglishSlang,
+  resolveGuestLanguage,
 } from "../src/engine/language.js";
-import { hoursReplyLanguage } from "../src/engine/reply.js";
+import { hoursReplyLanguage, generateReply, CALL_OPENING } from "../src/engine/reply.js";
 
 function assert(label, cond) {
   if (!cond) {
@@ -50,3 +51,30 @@ assert(
   "hola y'all still Spanish greeting",
   detectMessageLanguage("hola") === "es"
 );
+
+const langState = { lang: "en" };
+const langApi = {
+  getLang: () => langState.lang,
+  setLang: (_id, next) => {
+    langState.lang = next;
+    return next;
+  },
+};
+assert(
+  "start English",
+  resolveGuestLanguage("t", "what time do you close?", langApi) === "en"
+);
+assert(
+  "switch to Spanish this turn",
+  resolveGuestLanguage("t", "¿tienen menú infantil?", langApi) === "es"
+);
+assert("remembered Spanish", langState.lang === "es");
+assert(
+  "switch back to English immediately",
+  resolveGuestLanguage("t", "and do y'all have fries?", langApi) === "en"
+);
+assert("remembered English", langState.lang === "en");
+
+const later = generateReply("kids menu", { initial: false });
+assert("no greeting on follow-up", !later.startsWith(CALL_OPENING));
+assert("no reset debug text", !/conversation reset/i.test(later));
