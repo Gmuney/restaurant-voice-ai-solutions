@@ -380,7 +380,7 @@ if (
   !spanishMulti.includes("nuestra cocina y restaurante cierran a las") ||
   !/esta noche/.test(spanishMulti) ||
   /\btonight\b/i.test(spanishMulti) ||
-  !/cambiar cualquier guarnición|podemos cambiar/i.test(spanishMulti)
+  !/por supuesto|puedes cambiar esas papas|cuál prefieres/i.test(spanishMulti)
 ) {
   console.error("FAIL Spanish multi-intent must answer hours AND side swap in Spanish");
   console.error("GOT:", spanishMulti);
@@ -391,7 +391,7 @@ if (
   process.exitCode = 1;
 } else if (
   spanishMulti.indexOf("Como hoy es") >
-  spanishMulti.search(/cambiar cualquier guarnición|podemos cambiar/i)
+  spanishMulti.search(/por supuesto|puedes cambiar esas papas|cuál prefieres/i)
 ) {
   console.error("FAIL Spanish multi-intent should lead with closing hours");
   console.error("GOT:", spanishMulti);
@@ -484,4 +484,163 @@ if (notReset.includes(SESSION_TERMINATED_FLAG) || notReset.startsWith(CALL_SIGNO
   process.exitCode = 1;
 } else {
   console.log("PASS incidental end does not terminate the session");
+}
+
+const mahiLookup = generateReply("Mahi Tacos");
+if (
+  !mahiLookup.includes("sweet potato fries") ||
+  !mahiLookup.includes("sweet chipotle cheddar jack cheese") ||
+  !mahiLookup.includes("pico de gallo") ||
+  /\$19/.test(mahiLookup)
+) {
+  console.error("FAIL Mahi Tacos must read every chalkboard sub-line item, not just the price");
+  console.error("GOT:", mahiLookup);
+  process.exitCode = 1;
+} else {
+  console.log("PASS Mahi Tacos uses chalkboard payload sides");
+}
+const mahiSides = generateReply("what sides come with the mahi tacos");
+if (
+  !mahiSides.includes("sweet potato fries") ||
+  !mahiSides.includes("pico de gallo") ||
+  mahiSides.includes("Kids Fish Sticks") ||
+  /\$19/.test(mahiSides)
+) {
+  console.error("FAIL mahi sides must list the full sub-line, not kids menu or price-only");
+  console.error("GOT:", mahiSides);
+  process.exitCode = 1;
+} else {
+  console.log("PASS mahi sides stay on the chalkboard payload");
+}
+const redfishSides = generateReply("what toppings come with the Redfish Nola");
+if (
+  !redfishSides.includes("blackened crawfish tails") ||
+  !redfishSides.includes("crawfish cream") ||
+  !redfishSides.includes("crispy okra") ||
+  !redfishSides.includes("cornbread") ||
+  /\$29/.test(redfishSides)
+) {
+  console.error("FAIL Redfish Nola must speak every topping and side");
+  console.error("GOT:", redfishSides);
+  process.exitCode = 1;
+} else {
+  console.log("PASS Redfish Nola lists toppings and sides");
+}
+const halibutSides = generateReply("Seared Halibut sides");
+if (
+  !halibutSides.includes("mashed potatoes") ||
+  !halibutSides.includes("honey-glazed rainbow carrots") ||
+  !halibutSides.includes("maple honey chipotle butter") ||
+  !halibutSides.includes("homestyle sour cream") ||
+  /\$38/.test(halibutSides)
+) {
+  console.error("FAIL Halibut must speak every sub-line item");
+  console.error("GOT:", halibutSides);
+  process.exitCode = 1;
+} else {
+  console.log("PASS Halibut lists toppings and sides");
+}
+
+const HH_BURGER_SIDE =
+  "Yes, our Double Bacon Cheeseburger comes served with house-seasoned fries!";
+const HH_BURGER_SWAP =
+  "Absolutely! You can swap those fries for coleslaw, buttermilk mashed potatoes, black beans and rice, or hush puppies. What would you prefer?";
+for (const q of [
+  "Does the Double Bacon Cheeseburger come with a side?",
+  "what sides come with the double bacon cheeseburger",
+  "does the happy hour burger come with fries",
+]) {
+  const a = generateReply(q);
+  if (a !== HH_BURGER_SIDE) {
+    console.error(`FAIL HH burger default side: "${q}"`);
+    console.error("GOT:", a);
+    process.exitCode = 1;
+  } else if (/86|bullet|•|^-/im.test(a)) {
+    console.error(`FAIL HH burger must not dump inventory: "${q}"`);
+    process.exitCode = 1;
+  } else {
+    console.log("PASS HH burger default side:", q);
+  }
+}
+for (const q of [
+  "Can I change the side on the Double Bacon Cheeseburger?",
+  "can I substitute the fries on the happy hour burger",
+  "can I swap the side on the bacon cheeseburger",
+  "Can I switch out the fries?",
+]) {
+  const a = generateReply(q);
+  if (a !== HH_BURGER_SWAP) {
+    console.error(`FAIL HH burger side swap: "${q}"`);
+    console.error("GOT:", a);
+    process.exitCode = 1;
+  } else if (
+    /86 board|everyday menu|side option|inventory/i.test(a) ||
+    (a.match(/,/g) || []).length > 4
+  ) {
+    console.error(`FAIL side swap must stay a short spoken list: "${q}"`);
+    console.error("GOT:", a);
+    process.exitCode = 1;
+  } else {
+    console.log("PASS HH burger side swap:", q);
+  }
+}
+const kidsStill = generateReply("what sides come with a kids meal");
+if (!/Kids Fish Sticks/i.test(kidsStill) || kidsStill === HH_BURGER_SIDE) {
+  console.error("FAIL kids sides must not use HH burger script");
+  console.error("GOT:", kidsStill);
+  process.exitCode = 1;
+} else {
+  console.log("PASS kids sides stay on kids menu");
+}
+
+const HAPPY_HOUR_SCRIPT =
+  "Happy Hour runs Sunday through Friday from 3 to 6 PM! We feature five-dollar Gold Margaritas and draft beers, half-off wine by the glass, plus food specials like two-dollar oysters, eleven-dollar Crispy Calamari, and our ten-dollar Double Bacon Cheeseburger.";
+const hh = generateReply("happy hour");
+if (hh !== HAPPY_HOUR_SCRIPT) {
+  console.error("FAIL happy hour must be the spoken 2-sentence script");
+  console.error("GOT:", hh);
+  process.exitCode = 1;
+} else if (/^[\s-*•]/m.test(hh) || hh.split(/[.!?]+/).filter((s) => s.trim()).length !== 2) {
+  console.error("FAIL happy hour must be two spoken sentences with no bullets");
+  console.error("GOT:", hh);
+  process.exitCode = 1;
+} else if (
+  !/gold margaritas/i.test(hh) ||
+  !/draft beers/i.test(hh) ||
+  !/wine by the glass/i.test(hh) ||
+  !/oysters/i.test(hh) ||
+  !/crispy calamari/i.test(hh) ||
+  !/double bacon cheeseburger/i.test(hh)
+) {
+  console.error("FAIL happy hour must name drinks and food specials");
+  console.error("GOT:", hh);
+  process.exitCode = 1;
+} else {
+  console.log("PASS happy hour spoken script");
+}
+for (const q of [
+  "happy hour",
+  "gluten free",
+  "website",
+  "to go",
+  "gift card",
+  "menu",
+  "book a table for 4",
+  "are you open and do you have gluten free options",
+]) {
+  const a = generateReply(q);
+  if (/https?:\/\/|www\.|fishcitygrill\.com|olo\.com|on our website/i.test(a)) {
+    console.error(`FAIL "${q}" must not speak a URL or website`);
+    console.error("GOT:", a);
+    process.exitCode = 1;
+  }
+}
+console.log("PASS spoken replies have no URLs");
+const hhCombo = generateReply("hours and happy hour");
+if (!hhCombo.includes(HAPPY_HOUR_SCRIPT)) {
+  console.error("FAIL multi-intent happy hour must use the spoken script");
+  console.error("GOT:", hhCombo);
+  process.exitCode = 1;
+} else {
+  console.log("PASS multi-intent happy hour spoken script");
 }

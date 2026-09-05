@@ -199,7 +199,7 @@ export async function translateToSpanish(englishText) {
   // Prefer local Ollama when Gemini key is missing (common on this VPS).
   const system =
     `Traduce al español natural (estilo México / Sur de EE.UU.) textos de un restaurante para invitados.
-Reglas: solo la traducción, sin comillas ni comentarios. El resultado debe ser 100% español: nunca dejes palabras en inglés como tonight, side, sides, Happy Hour, board, default, manager o ASAP; usa esta noche, guarnición, hora feliz, pizarrón, de forma predeterminada, gerente, lo antes posible. Conserva nombres oficiales de platillos, URLs, precios y teléfonos. Tono SMS corto.`;
+Reglas: solo la traducción, sin comillas ni comentarios. El resultado debe ser 100% español: nunca dejes palabras en inglés como tonight, side, sides, Happy Hour, board, default, manager o ASAP; usa esta noche, guarnición, hora feliz, pizarrón, de forma predeterminada, gerente, lo antes posible. Conserva nombres oficiales de platillos, precios y teléfonos. Nunca traduzcas ni leas una URL. Tono SMS corto.`;
 
   const key = loadGeminiApiKey();
   if (key) {

@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { KNOWLEDGE_DIR } from "../paths.js";
-import { getSoldOut } from "../store.js";
+import { getSoldOut, findReinstatedMatch, findSoldOutMatch } from "../store.js";
 import { hasClearSpanish, isPureGreeting, isTexasEnglishSlang } from "./language.js";
 import { asksDishAllergen, dishAllergenReply } from "./dish-allergen.js";
+import { findPayloadDish, spokenPayloadDishDetail } from "./board-payload.js";
 
 const restaurant = JSON.parse(
   readFileSync(join(KNOWLEDGE_DIR, "restaurant.json"), "utf8")
@@ -77,9 +78,31 @@ function stripCallOpening(reply) {
   return body;
 }
 
+/** Landline voice — never read a URL, website, or inventory debug. */
+function stripSpokenUrls(text) {
+  let body = String(text || "");
+  body = body.replace(/https?:\/\/\S+/gi, "");
+  body = body.replace(/\bwww\.[^\s.,;:]+/gi, "");
+  body = body.replace(/\b[\w-]*fishcitygrill\.[^\s.,;:]+/gi, "");
+  body = body.replace(/\b[\w-]*olo\.com[^\s.,;:]*/gi, "");
+  body = body.replace(/\b[\w-]*cardfoundry\.[^\s.,;:]+/gi, "");
+  body = body.replace(/\(?\s*(?:demo\s+)?86 board[^.()\n]*/gi, "");
+  body = body.replace(/\beveryday menu\b/gi, "menu");
+  body = body.replace(/\bSide option\.?/gi, "");
+  body = body.replace(/\bmarked sold out on today's[^.!\n]*/gi, "");
+  body = body.replace(/\bun-?86\b/gi, "");
+  body = body.replace(/\bmiddleware\b/gi, "");
+  body = body.replace(/\bsystem flag\b/gi, "");
+  body = body.replace(/[ \t]+\n/g, "\n");
+  body = body.replace(/\n{3,}/g, "\n\n");
+  body = body.replace(/[ \t]{2,}/g, " ");
+  body = body.replace(/[ \t]+([.,!?;:])/g, "$1");
+  return body.trim();
+}
+
 /** Turn 1: prefix. Later turns: never repeat the parenthetical greeting. */
 function applyCallOpening(reply, initial) {
-  const raw = String(reply || "").trim();
+  const raw = stripSpokenUrls(String(reply || "").trim());
   if (raw.includes(SESSION_TERMINATED_FLAG)) return raw;
   const cleaned = stripCallOpening(raw);
   return initial ? withCallOpening(cleaned) : cleaned;
@@ -433,14 +456,10 @@ function standardEscalationAnswers(text, lang = "en") {
   if (asksDishAllergen(text)) bits.push(dishAllergenReply(text, lang));
   else if (asksKidsMeal(text)) bits.push(kidsMealReply(text, lang));
   if (asksParking(text)) bits.push(parkingAnswer(lang));
-  if (asksHappyHour(text)) {
-    bits.push(
-      lang === "es"
-        ? `La hora feliz es ${happyHour.daysEs || "domingo a viernes"}, ${happyHour.hours || "3–6pm"} (menú de hora feliz, aparte del pizarrón).`
-        : `Happy Hour is ${happyHour.days || "Sunday–Friday"}, ${happyHour.hours || "3–6pm"} (separate from chalkboard specials).`
-    );
-  }
-  if (isSideSwap(text) && !asksKidsMeal(text)) bits.push(sideSwapAnswer(lang));
+  if (asksHappyHourReadout(text)) bits.push(happyHourAnswer(lang));
+  const hhBurgerEsc = happyHourBurgerReply(text, lang);
+  if (hhBurgerEsc) bits.push(hhBurgerEsc);
+  else if (isSideSwap(text) && !asksKidsMeal(text)) bits.push(sideSwapAnswer(lang));
   if (asksCateringEscalation(text) && !isLargeOnlineParty(extractPartySize(text))) {
     // Brief catering confirm before transfer — no phone/call prompt
     bits.push(
@@ -605,48 +624,115 @@ function parkingAnswer(lang = "en") {
   );
 }
 
-/** Happy Hour menu (NOT chalkboard specials). */
+/** Happy Hour — 2 spoken sentences, drinks and food. Never bullets or a URL. */
 function happyHourAnswer(lang = "en") {
-  const days = happyHour.days || restaurant.happyHour?.days || "Sunday–Friday";
-  const hours = happyHour.hours || restaurant.happyHour?.hours || "3pm–6pm";
-  const drinks = (happyHour.drinks || [])
-    .map((d) => `• ${d.name}${d.price ? ` — ${d.price}` : ""}`)
-    .join("\n");
-  const food = (happyHour.food || [])
-    .map((d) => `• ${d.name}${d.price ? ` — ${d.price}` : ""}`)
-    .join("\n");
-
   if (lang === "es") {
-    return [
-      `Hora feliz: domingo a viernes, ${hours}.`,
-      "(Este es el menú de hora feliz — diferente de los especiales del pizarrón.)",
-      "",
-      "Bebidas:",
-      drinks || "• Pregunta a tu mesero por la lista de hoy",
-      "",
-      "Comida / platillos pequeños:",
-      food || "• Pregunta a tu mesero por la lista de hoy",
-      "",
-      `Más info: ${happyHour.sourceUrl || restaurant.website}`,
-    ].join("\n");
+    return (
+      happyHour.spokenEs ||
+      "¡La hora feliz es de domingo a viernes, de 3 a 6 de la tarde! Tenemos margaritas Gold y cervezas de barril a cinco dólares, vino por copa a mitad de precio, y especiales de comida como ostiones a dos dólares, calamari crujiente a once dólares, y nuestra hamburguesa doble con tocino y queso a diez dólares."
+    );
   }
-
-  return [
-    `Happy Hour: ${days}, ${hours}.`,
-    "(This is the Happy Hour menu — separate from chalkboard specials.)",
-    "",
-    "Drinks:",
-    drinks || "• Ask your server for today’s HH list",
-    "",
-    "Food / small plates:",
-    food || "• Ask your server for today’s HH list",
-    "",
-    `More: ${happyHour.sourceUrl || restaurant.website}`,
-  ].join("\n");
+  return (
+    happyHour.spokenEn ||
+    "Happy Hour runs Sunday through Friday from 3 to 6 PM! We feature five-dollar Gold Margaritas and draft beers, half-off wine by the glass, plus food specials like two-dollar oysters, eleven-dollar Crispy Calamari, and our ten-dollar Double Bacon Cheeseburger."
+  );
 }
 
 function asksHappyHour(text) {
   return /\b(happy\s*hour|hh\b|drink specials?|half off wine|hora feliz)\b/i.test(text);
+}
+
+/** True only when they asked about Happy Hour itself, not just "happy hour burger". */
+function asksHappyHourReadout(text) {
+  if (!asksHappyHour(text)) return false;
+  const stripped = String(text || "").replace(
+    /\b(happy\s*hour|hh)\s+(double\s+)?(bacon\s+)?(cheese)?burgers?\b/gi,
+    " "
+  );
+  return /\b(happy\s*hour|hh\b|drink specials?|half off wine|hora feliz)\b/i.test(
+    stripped
+  );
+}
+
+/** Happy Hour Double Bacon Cheeseburger — not kids cheeseburger, not chalkboard. */
+function mentionsHappyHourBurger(text) {
+  const t = String(text || "");
+  if (/\b(kids?|children|ni[nñ]os?)\b/i.test(t)) return false;
+  return (
+    /\bdouble\s+bacon\s+(cheese)?burgers?\b/i.test(t) ||
+    /\b(happy\s*hour|hh)\s+(double\s+)?(bacon\s+)?(cheese)?burgers?\b/i.test(t) ||
+    /\bbacon\s+cheeseburgers?\b/i.test(t)
+  );
+}
+
+function asksHappyHourBurgerSideSwap(text) {
+  const t = String(text || "");
+  if (!mentionsHappyHourBurger(t)) return false;
+  if (isSideSwap(t)) return true;
+  return (
+    /\b(change[ds]?|swap(?:ped)?|switch(?:ed)?|substitut\w*|replace[ds]?|different|another|instead)\b/i.test(
+      t
+    ) && /\b(sides?|fries|guarnici|papas?)\b/i.test(t)
+  );
+}
+
+function asksHappyHourBurgerDefaultSide(text) {
+  const t = String(text || "");
+  if (!mentionsHappyHourBurger(t)) return false;
+  if (asksHappyHourBurgerSideSwap(t)) return false;
+  return /\b(sides?|fries|come with|comes with|served with|include[sd]?|guarnici|papas?)\b/i.test(
+    t
+  );
+}
+
+function happyHourBurgerDefaultSideAnswer(lang = "en") {
+  if (lang === "es") {
+    return (
+      happyHour.burgerDefaultSideEs ||
+      "¡Sí, nuestra hamburguesa doble con tocino y queso se sirve con papas fritas sazonadas de la casa!"
+    );
+  }
+  return (
+    happyHour.burgerDefaultSideEn ||
+    "Yes, our Double Bacon Cheeseburger comes served with house-seasoned fries!"
+  );
+}
+
+function happyHourBurgerSwapSideAnswer(lang = "en") {
+  return sideSwapAnswer(lang);
+}
+
+/** Spoken HH burger side answer, or null if this is not that question. */
+function happyHourBurgerReply(text, lang = "en") {
+  if (asksHappyHourBurgerSideSwap(text)) return happyHourBurgerSwapSideAnswer(lang);
+  if (asksHappyHourBurgerDefaultSide(text)) {
+    return happyHourBurgerDefaultSideAnswer(lang);
+  }
+  return null;
+}
+
+function asksInventoryAvailability(text) {
+  return /\b(do y'?all have|do you have|y'?all have|have any|got any|still have|out of|sold out|can i get|can we get|can my (kid|child)|available|in stock|back (in stock|tonight)|agotad)\b/i.test(
+    String(text || "")
+  );
+}
+
+export function reinstatedShipmentAnswer(itemName, lang = "en") {
+  const name = String(itemName || "that").trim();
+  if (lang === "es") {
+    return `¡Qué buena noticia! Nuestro chef acaba de recibir un envío fresco de ${name}, así que ya está de vuelta y disponible esta noche!`;
+  }
+  return `Great news! Our chef just got a fresh shipment of ${name}, so that is back in stock and available tonight!`;
+}
+
+/** Previously 86'd, now back — host voice only. Never say un-86, 68, or system flags. */
+export function reinstatedGuestReply(text, lang = "en") {
+  const t = String(text || "");
+  if (!asksInventoryAvailability(t)) return null;
+  const hits = findReinstatedMatch(t);
+  if (!hits.length) return null;
+  if (findSoldOutMatch(t).length) return null;
+  return reinstatedShipmentAnswer(hits[0].name, lang);
 }
 
 function asksParking(text) {
@@ -674,7 +760,7 @@ function isSeatingPreference(text) {
 function isSideSwap(text) {
   const t = String(text || "");
   if (
-    /\b(change|changed|swap|swapped|switch|switched|substitut|replace|replaced|different|another|switch out|change out|swap out).{0,40}\bsides?\b|\bsides?\b.{0,40}\b(change|changed|swap|swapped|switch|switched|substitut|replace|replaced|different|another)\b/i.test(
+    /\b(change|changed|swap|swapped|switch|switched|substitut\w*|replace|replaced|different|another|switch out|change out|swap out|switch(?:ed)?\s+out).{0,40}\b(sides?|fries|papas?|potatoes)\b|\b(sides?|fries|papas?|potatoes)\b.{0,40}\b(change|changed|swap|swapped|switch|switched|substitut\w*|replace|replaced|different|another)\b/i.test(
       t
     )
   ) {
@@ -701,13 +787,15 @@ function isSideSwap(text) {
 function sideSwapAnswer(lang = "en") {
   if (lang === "es") {
     return (
+      happyHour.burgerSwapSideEs ||
       restaurant.policies?.sideSubstitutionsEs ||
-      "Sí — podemos cambiar cualquier guarnición por otras guarniciones que tengamos listadas. Dile a tu mesero cuál prefieres."
+      "¡Por supuesto! Puedes cambiar esas papas por ensalada de col, puré de papa buttermilk, frijoles negros con arroz, o hush puppies. ¿Cuál prefieres?"
     );
   }
   return (
+    happyHour.burgerSwapSideEn ||
     restaurant.policies?.sideSubstitutions ||
-    "Yes — we can change out any side item for our other side items that we have listed. Tell your server (or note it on your to-go order) which listed side you’d like instead."
+    "Absolutely! You can swap those fries for coleslaw, buttermilk mashed potatoes, black beans and rice, or hush puppies. What would you prefer?"
   );
 }
 
@@ -990,7 +1078,7 @@ function countGuestIntents(text) {
   if (asksKidsMeal(text)) n += 1;
   if (asksDishAllergen(text)) n += 1;
   if (isSideSwap(text)) n += 1;
-  if (asksHappyHour(text)) n += 1;
+  if (asksHappyHourReadout(text) || mentionsHappyHourBurger(text)) n += 1;
   if (asksParking(text)) n += 1;
   if (asksGluten(text) || asksFryerCrossContact(text)) n += 1;
   if (extractPartySize(text) != null) n += 1;
@@ -1032,10 +1120,16 @@ function composeMultiPartReply(rawMessage, opts = {}) {
   const partyBit = partyBookingAnswer(partySize, text, lang);
   if (partyBit) parts.push(partyBit);
 
-  if (asksKidsMeal(text) && !asksDishAllergen(text)) parts.push(kidsMealReply(text, lang));
-  else if (asksDishAllergen(text)) parts.push(dishAllergenReply(text, lang));
-  else if (isSideSwap(text)) parts.push(sideSwapAnswer(lang));
-  if (asksHappyHour(text)) parts.push(happyHourAnswer(lang));
+  if (asksKidsMeal(text) && !asksDishAllergen(text) && !mentionsHappyHourBurger(text)) {
+    parts.push(kidsMealReply(text, lang));
+  } else if (asksDishAllergen(text)) {
+    parts.push(dishAllergenReply(text, lang));
+  } else {
+    const hhBurger = happyHourBurgerReply(text, lang);
+    if (hhBurger) parts.push(hhBurger);
+    else if (isSideSwap(text)) parts.push(sideSwapAnswer(lang));
+  }
+  if (asksHappyHourReadout(text)) parts.push(happyHourAnswer(lang));
   if (asksParking(text)) parts.push(parkingAnswer(lang));
 
   if (asksDishAllergen(text)) {
@@ -1262,6 +1356,19 @@ function generateReplyBody(rawMessage, opts = {}) {
     return dishAllergenReply(text, lang);
   }
 
+  // Happy Hour burger sides — before chalkboard, kids menu, or generic side dumps
+  const hhBurger = happyHourBurgerReply(text, lang);
+  if (hhBurger) return hhBurger;
+
+  const restocked = reinstatedGuestReply(text, lang);
+  if (restocked) return restocked;
+
+  // Named chalkboard item / sides — payload first, before kids or everyday menu
+  const boardDish = findPayloadDish(text);
+  if (boardDish) {
+    return spokenPayloadDishDetail(boardDish, lang, text);
+  }
+
   // Kids menu: exactly ONE side; 86 a side only if the guest named it
   if (asksKidsMeal(text)) {
     return kidsMealReply(text, lang);
@@ -1305,13 +1412,11 @@ function generateReplyBody(rawMessage, opts = {}) {
   }
 
   if (isSideSwap(text)) {
+    const hhBurgerSwap = happyHourBurgerReply(text, lang);
+    if (hhBurgerSwap) return hhBurgerSwap;
     const pastCombo = answerPastSpecialOrCustomMod(text, { language: lang });
     if (pastCombo && asksPastSpecial(text)) return pastCombo;
-    const otherHits = findAllFaq(lower).filter((i) => i.id !== "side-swap");
-    const parts = [sideSwapAnswer(lang)];
-    for (const hit of otherHits) parts.push(resolveAnswer(hit, lang, text));
-    if (isSeatingPreference(text)) parts.push(MANAGER_OPTION);
-    return parts.join("\n\n");
+    return sideSwapAnswer(lang);
   }
 
   const pastOrCustom = answerPastSpecialOrCustomMod(text, { language: lang });
@@ -1388,6 +1493,11 @@ export {
   asksManagerEscalation,
   managerEscalationLine,
   happyHourAnswer,
+  happyHourBurgerReply,
+  mentionsHappyHourBurger,
+  isSideSwap,
+  sideSwapAnswer,
+  asksHappyHourReadout,
   parkingAnswer,
   hoursAnswer,
   asksHours,
@@ -1416,6 +1526,7 @@ export {
   withCallOpening,
   stripCallOpening,
   applyCallOpening,
+  stripSpokenUrls,
   greetingReply,
   ALLERGY_DISCLAIMER,
   ALLERGY_DISCLAIMER_ES,

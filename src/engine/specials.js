@@ -11,9 +11,16 @@ import {
 import {
   parseBoardDishes,
   getActiveSpecialsPayload,
+  findPayloadDish,
+  spokenPayloadDishDetail,
 } from "./board-payload.js";
 
-export { parseBoardDishes, getActiveSpecialsPayload };
+export {
+  parseBoardDishes,
+  getActiveSpecialsPayload,
+  findPayloadDish,
+  spokenPayloadDishDetail,
+};
 
 function listSpokenItems(items) {
   if (items.length === 1) return items[0];
@@ -78,7 +85,10 @@ function payloadSourceText(board, payload) {
   const verified = getVerifiedBoardPayload(board);
   if (verified?.text && !looksGenericMenuFallback(verified.text)) return verified.text;
   return (payload?.dishes || [])
-    .map((d) => `${d.name} — $${d.price}${d.notes ? `\n  ${d.notes}` : ""}`)
+    .map((d) => {
+      const bits = [d.toppings, d.sides].filter(Boolean).join("; ");
+      return `${d.name} — $${d.price}${bits ? `\n  ${bits}` : ""}`;
+    })
     .join("\n");
 }
 
@@ -182,6 +192,15 @@ export async function answerSpecialsQuestion(question, opts = {}) {
   const managerText = saved.text || "";
   const speech = guestSpecialsSpeech(board, lang);
   const payload = speech.payload || getActiveSpecialsPayload(board);
+  const named = findPayloadDish(q, payload);
+  if (named) {
+    return {
+      kind: "text",
+      text: spokenPayloadDishDetail(named, lang, q),
+      board,
+      needsRefreshFollowUp: false,
+    };
+  }
   const sourceText = payloadSourceText(board, payload);
   const combined = `${sourceText}\n${(payload?.dishes || [])
     .map((d) => d.name)

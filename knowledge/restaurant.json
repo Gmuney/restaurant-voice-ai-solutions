@@ -62,7 +62,7 @@
   "allergies": {
     "summary": "We can accommodate most allergy requests. Please tell your server about any allergies when you arrive.",
     "shellfish": "Shellfish is limited for us — it touches most of our kitchen, so we cannot guarantee a shellfish-free environment. If you have a shellfish allergy, please call us so we can talk through options safely.",
-    "gluten": "We offer a gluten-free menu. Ask your server or see the gluten-free menu on our website.",
+    "gluten": "We offer a gluten-free menu — mention celiac or allergy needs when you order so we can take extra care.",
     "vegetarian": "We have some non-seafood options (salads, chicken dishes, burger, sides). Ask your server what's best for vegetarian guests that day.",
     "vegan": "Vegan options are more limited. Call ahead or ask a manager so we can guide you honestly."
   },
@@ -87,16 +87,16 @@
     "kidsMealSidesEs": "Las guarniciones infantiles son brócoli, ensalada de col Virginia's Apple Cider, elote, arroz blanco, bolitas de maíz fritas o papas fritas.",
     "dishAllergenSideSwap": "We can swap any listed side for another listed side — just tell your server.",
     "dishAllergenSideSwapEs": "Podemos cambiar cualquier guarnición listada por otra — solo dile a tu mesero.",
-    "sideSubstitutions": "Yes — we can change out any side item for our other side items that we have listed. Tell your server (or note it on your to-go order) which listed side you’d like instead.",
-    "sideSubstitutionsEs": "Sí — podemos cambiar cualquier guarnición por otras guarniciones que tengamos listadas. Dile a tu mesero (o anótalo en tu orden para llevar) cuál de las guarniciones listadas prefieres en su lugar.",
+    "sideSubstitutions": "Absolutely! You can swap those fries for coleslaw, buttermilk mashed potatoes, black beans and rice, or hush puppies. What would you prefer?",
+    "sideSubstitutionsEs": "¡Por supuesto! Puedes cambiar esas papas por ensalada de col, puré de papa buttermilk, frijoles negros con arroz, o hush puppies. ¿Cuál prefieres?",
     "pastSpecialsRule": "Host tone for past chalkboard specials: acknowledge that boards rotate; immediately suggest a concrete available-menu build (never ask the guest to list flavors); confirm side swaps in one smooth sentence; keep replies to 3–4 sentences; never repeat disclaimers, links, or phone numbers.",
-    "glutenFryer": "We offer a gluten-free menu (see https://www.fishcitygrill.com/locations/culebra). We cannot promise a separate fryer from breaded chicken or other fried items — shared oil / cross-contact can happen; please notify your server of severe allergies upon arrival so our kitchen can take extra precautions against cross-contamination.",
-    "glutenFryerEs": "Tenemos menú sin gluten (ver https://www.fishcitygrill.com/locations/culebra). No podemos garantizar una freidora separada del pollo empanizado u otros fritos — puede haber aceite compartido / contaminación cruzada; por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada.",
+    "glutenFryer": "We offer a gluten-free menu. We cannot promise a separate fryer from breaded chicken or other fried items — shared oil / cross-contact can happen; please notify your server of severe allergies upon arrival so our kitchen can take extra precautions against cross-contamination.",
+    "glutenFryerEs": "Tenemos menú sin gluten. No podemos garantizar una freidora separada del pollo empanizado u otros fritos — puede haber aceite compartido / contaminación cruzada; por favor avise a su mesero de alergias graves al llegar para que la cocina pueda tomar precauciones extra contra la contaminación cruzada.",
     "largePartyAnswer": "For a group this size, please call (210) 455-3474 directly so our management team can secure the best table available for you.",
     "largePartyAnswerEs": "Para grupos de este tamaño, por favor llama directamente al (210) 455-3474 para que nuestro equipo de gerencia te asegure la mejor mesa disponible."
   },
   "reservations": {
-    "summary": "Yes — we take reservations (including via OpenTable). You can request one in this chat, book online, or call (210) 455-3474.",
+    "summary": "Yes — we take reservations. I can take one right here, or you can call (210) 455-3474.",
     "walkIns": "Walk-ins are welcome. Waits can happen when we're busy — reservations are the safest bet for a preferred time.",
     "largeParty": "NEED_MANAGER_CONFIRM",
     "largePartyAnswer": "I am alerting our management team right now. Please stay on the line while I connect you to a manager.",
@@ -107,15 +107,15 @@
     "corkage": "NEED_MANAGER_CONFIRM",
     "corkageAnswer": "Ask a manager about corkage / bringing your own bottle — call (210) 455-3474.",
     "cake": "You're welcome to ask about bringing a celebration cake — call ahead so we can plan with you: (210) 455-3474.",
-    "giftCards": "Gift cards are available: https://fishcitygrill.cardfoundry.com/",
+    "giftCards": "Gift cards are available — ask your server or call the restaurant.",
     "managerEscalation": "To speak with management, I am alerting our team right now. Please stay on the line while I connect you to a manager.",
     "managerEscalationEs": "Para hablar con gerencia, estoy alertando a nuestro equipo ahora mismo. Por favor quédate en la línea mientras te conecto con un gerente."
   },
   "takeout": {
-    "summary": "To-go / takeout is available. Place an order in this chat, call (210) 455-3474, or order online."
+    "summary": "To-go / takeout is available. I can take a to-go request right here, or you can call (210) 455-3474."
   },
   "delivery": {
-    "summary": "For delivery options, check our online ordering page or call the restaurant: https://fishcitygrill.olo.com/ · (210) 455-3474"
+    "summary": "For delivery options, call the restaurant at (210) 455-3474 and we'll walk you through what's available."
   },
   "accessibility": {
     "summary": "If you need accessibility details (wheelchair access, seating, etc.), call us at (210) 455-3474 and we'll help you plan."

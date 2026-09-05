@@ -48,16 +48,42 @@ export function listManagerIds() {
   return Object.keys(getManagers().managers);
 }
 
+const INVENTORY_ALIASES = {
+  broccoli: ["broccoli", "brocolli", "brocoli", "broccolli"],
+};
+
+function inventoryKey(name) {
+  return String(name || "").trim().toLowerCase();
+}
+
+function queryMentionsItem(queryLower, itemName) {
+  const name = inventoryKey(itemName);
+  if (!name) return false;
+  if (queryLower.includes(name)) return true;
+  const extras = INVENTORY_ALIASES[name] || [];
+  return extras.some((a) => queryLower.includes(a));
+}
+
+function guestInventoryQuery(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ");
+}
+
 export function getSoldOut() {
-  return readJson("soldout.json", { items: [] });
+  const db = readJson("soldout.json", { items: [], reinstated: [] });
+  if (!Array.isArray(db.items)) db.items = [];
+  if (!Array.isArray(db.reinstated)) db.reinstated = [];
+  return db;
 }
 
 export function addSoldOut(name, by) {
   const db = getSoldOut();
-  const key = name.trim().toLowerCase();
-  db.items = db.items.filter((i) => i.name.toLowerCase() !== key);
+  const key = inventoryKey(name);
+  db.items = db.items.filter((i) => inventoryKey(i.name) !== key);
+  db.reinstated = db.reinstated.filter((i) => inventoryKey(i.name) !== key);
   db.items.push({
-    name: name.trim(),
+    name: String(name || "").trim(),
     by: by || "manager",
     at: new Date().toISOString(),
   });
@@ -65,29 +91,39 @@ export function addSoldOut(name, by) {
   return db.items;
 }
 
-export function removeSoldOut(name) {
+export function removeSoldOut(name, by) {
   const db = getSoldOut();
-  const key = name.trim().toLowerCase();
+  const key = inventoryKey(name);
+  const found = db.items.find((i) => inventoryKey(i.name) === key);
   const before = db.items.length;
-  db.items = db.items.filter((i) => i.name.toLowerCase() !== key);
+  db.items = db.items.filter((i) => inventoryKey(i.name) !== key);
+  if (before !== db.items.length) {
+    const label = found?.name || String(name || "").trim();
+    db.reinstated = db.reinstated.filter((i) => inventoryKey(i.name) !== key);
+    db.reinstated.push({
+      name: label,
+      by: by || "manager",
+      at: new Date().toISOString(),
+    });
+  }
   writeJson("soldout.json", db);
   return before !== db.items.length;
 }
 
+export function getReinstated() {
+  const soldKeys = new Set(getSoldOut().items.map((i) => inventoryKey(i.name)));
+  return getSoldOut().reinstated.filter((i) => !soldKeys.has(inventoryKey(i.name)));
+}
+
 export function findSoldOutMatch(text) {
-  const lower = String(text || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ");
-  // Common guest typos for demo items
-  const aliases = {
-    broccoli: ["broccoli", "brocolli", "brocoli", "broccolli"],
-  };
-  return getSoldOut().items.filter((i) => {
-    const name = i.name.toLowerCase();
-    if (lower.includes(name)) return true;
-    const extras = aliases[name] || [];
-    return extras.some((a) => lower.includes(a));
-  });
+  const lower = guestInventoryQuery(text);
+  return getSoldOut().items.filter((i) => queryMentionsItem(lower, i.name));
+}
+
+/** Items cleared from the 86 list — fully available tonight. */
+export function findReinstatedMatch(text) {
+  const lower = guestInventoryQuery(text);
+  return getReinstated().filter((i) => queryMentionsItem(lower, i.name));
 }
 
 export function getSessions() {

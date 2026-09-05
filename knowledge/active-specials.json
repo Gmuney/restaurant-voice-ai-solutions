@@ -2,9 +2,24 @@
   "source": "verified",
   "meal": "dinner",
   "dishes": [
-    { "name": "Jalapeno Bacon Mahi Tacos", "price": "19" },
-    { "name": "Grilled Redfish Nola", "price": "29" },
-    { "name": "Maple Chipotle Seared Halibut", "price": "38" },
+    {
+      "name": "Jalapeno Bacon Mahi Tacos",
+      "price": "19",
+      "toppings": "Sweet Chipotle Cheddar Jack Cheese, Pico de Gallo",
+      "sides": "Sweet Potato Fries"
+    },
+    {
+      "name": "Grilled Redfish Nola",
+      "price": "29",
+      "toppings": "blackened crawfish tails, crawfish cream sauce",
+      "sides": "crispy okra, cornbread"
+    },
+    {
+      "name": "Maple Chipotle Seared Halibut",
+      "price": "38",
+      "toppings": "maple honey chipotle butter, homestyle sour cream",
+      "sides": "mashed potatoes, honey-glazed rainbow carrots"
+    },
     { "name": "Voodoo Seafood Pasta", "price": "27" },
     { "name": "Low Country Porkchop", "price": "26" }
   ]

@@ -172,7 +172,7 @@
         "web site",
         "online menu link"
       ],
-      "answer": "Website / menu: https://www.fishcitygrill.com/locations/culebra"
+      "answer": "I can read the menu for you right now — just tell me if you want appetizers, tacos, entrees, or today's chalkboard specials."
     },
     {
       "id": "reservations-yes",
@@ -186,7 +186,7 @@
         "hacen reservaciones",
         "puedo reservar"
       ],
-      "answer": "Yes — we take reservations. Say something like \"I wanted to make a reservation for 4 today at 5pm\" and I’ll book it with you here (adults/kids, time, booth/table/patio). You can also book online or call (210) 455-3474."
+      "answer": "Yes — we take reservations. Say something like \"I wanted to make a reservation for 4 today at 5pm\" and I’ll book it with you here (adults/kids, time, booth/table/patio). You can also call (210) 455-3474."
     },
     {
       "id": "walk-ins",
@@ -207,7 +207,7 @@
         "opentable",
         "open table"
       ],
-      "answer": "Yes — Fish City uses OpenTable. You can also request a reservation in this chat or call (210) 455-3474."
+      "answer": "Yes — we take reservations. I can book one with you right here, or you can call (210) 455-3474."
     },
     {
       "id": "party-size-max",
@@ -271,7 +271,7 @@
         "mesa para 4",
         "mesa para 6"
       ],
-      "answer": "Yes — parties of 7 or fewer can request a reservation here, book online / OpenTable, or call (210) 455-3474. For groups of 8 or more, please call (210) 455-3474 directly so our management team can secure the best table available."
+      "answer": "Yes — parties of 7 or fewer can request a reservation here, or call (210) 455-3474. For groups of 8 or more, please call (210) 455-3474 directly so our management team can secure the best table available."
     },
     {
       "id": "cancel-res",
@@ -330,7 +330,7 @@
         "regular menu",
         "normal menu"
       ],
-      "answer": "Everyday menu (not chalkboard specials): ask for APPETIZERS, TACOS, SANDWICHES, ENTREES, SIDES, DESSERTS, RAW BAR, or FULL MENU. Order online: https://fishcitygrill.olo.com/menu/fish-city-grill-culebra"
+      "answer": "Everyday menu is separate from chalkboard specials — ask for appetizers, tacos, sandwiches, entrees, sides, desserts, raw bar, or the full menu and I'll read it for you."
     },
     {
       "id": "specials",
@@ -341,7 +341,7 @@
         "daily special",
         "today's special"
       ],
-      "answer": "Chalkboard / daily specials are separate from the everyday menu. Ask about today's specials and I'll read the featured board dishes for you. Everyday items: https://fishcitygrill.olo.com/menu/fish-city-grill-culebra"
+      "answer": "Chalkboard / daily specials are separate from the everyday menu. Ask about today's specials and I'll read the featured board dishes for you."
     },
     {
       "id": "oysters",
@@ -520,7 +520,7 @@
         "food allergy",
         "allergic"
       ],
-      "answer": "We can accommodate most allergy requests. Shellfish is limited for us because it touches most of our kitchen; call (210) 455-3474 if that’s a concern. Gluten-free menu: https://www.fishcitygrill.com/locations/culebra"
+      "answer": "We can accommodate most allergy requests. Shellfish is limited for us because it touches most of our kitchen; call (210) 455-3474 if that’s a concern. We also offer a gluten-free menu — mention it when you order."
     },
     {
       "id": "shellfish-allergy",
@@ -548,7 +548,7 @@
         "celíaco",
         "celiaco"
       ],
-      "answer": "We offer a gluten-free menu. See it on our website: https://www.fishcitygrill.com/locations/culebra — and mention celiac/allergy needs when you order."
+      "answer": "We offer a gluten-free menu — mention celiac or allergy needs when you order so we can take extra care."
     },
     {
       "id": "vegetarian",
@@ -676,7 +676,7 @@
         "take out",
         "pickup order"
       ],
-      "answer": "Yes — to-go is available. Say \"to go order\" here, call (210) 455-3474, or order online: https://fishcitygrill.olo.com/"
+      "answer": "Yes — to-go is available. I can take a to-go request right here, or you can call (210) 455-3474."
     },
     {
       "id": "delivery",
@@ -687,7 +687,7 @@
         "uber eats",
         "doordash"
       ],
-      "answer": "Check online ordering / delivery options here: https://fishcitygrill.olo.com/ or call (210) 455-3474."
+      "answer": "For delivery, call (210) 455-3474 and we'll walk you through what's available tonight."
     },
     {
       "id": "online-order",
@@ -697,7 +697,7 @@
         "olo",
         "online ordering"
       ],
-      "answer": "Yes — https://fishcitygrill.olo.com/ or say \"to go order\" in this chat."
+      "answer": "Yes — say \"to go order\" and I'll take your request, or call (210) 455-3474."
     },
     {
       "id": "catering",
@@ -789,7 +789,7 @@
         "gift card",
         "gift certificate"
       ],
-      "answer": "Yes — gift cards: https://fishcitygrill.cardfoundry.com/"
+      "answer": "Yes — we sell gift cards. Ask your server when you visit, or call (210) 455-3474."
     },
     {
       "id": "wifi",
@@ -887,7 +887,7 @@
         "how to book",
         "make a booking"
       ],
-      "answer": "Easy — say \"book a table\" here, use OpenTable / our reservations page, or call (210) 455-3474."
+      "answer": "Easy — say \"book a table\" and I’ll take the reservation right here, or call (210) 455-3474."
     },
     {
       "id": "toast",
@@ -896,7 +896,7 @@
         "toast app",
         "toast tab"
       ],
-      "answer": "The restaurant uses Toast for operations. Guests can order online via https://fishcitygrill.olo.com/ or place a to-go request here."
+      "answer": "The restaurant uses Toast for operations. Say \"to go order\" and I'll take your request, or call (210) 455-3474."
     },
     {
       "id": "human",
@@ -943,7 +943,7 @@
         "work there",
         "careers"
       ],
-      "answer": "Careers info: https://www.fishcitygrill.com/work-with-fcg — or ask a manager when you visit."
+      "answer": "For careers, ask a manager when you visit and they'll point you to the team."
     },
     {
       "id": "franchise",
@@ -951,7 +951,7 @@
       "includes": [
         "franchise"
       ],
-      "answer": "Franchise info is on Fish City’s site: https://www.fishcitygrill.com/franchise"
+      "answer": "For franchise questions, ask a manager when you visit and they'll connect you with the right team."
     },
     {
       "id": "other-locations",
@@ -962,7 +962,7 @@
         "northwoods",
         "another location"
       ],
-      "answer": "Yes — Fish City has multiple locations (including other San Antonio spots). See all locations: https://www.fishcitygrill.com/locations — this bot is for Culebra."
+      "answer": "Yes — Fish City has multiple locations, including other San Antonio spots. This line is for our Culebra restaurant."
     },
     {
       "id": "covid",
@@ -1239,6 +1239,8 @@
         "swap sides",
         "swap the side",
         "switch sides",
+        "switch out the fries",
+        "switch out the side",
         "substitute side",
         "substitute the side",
         "different side",
@@ -1255,7 +1257,7 @@
         "cambiar el side",
         "cambiar los sides"
       ],
-      "answer": "Yes — we can change out any side item for our other side items that we have listed. Tell your server (or note it on your to-go order) which listed side you’d like instead."
+      "answer": "Absolutely! You can swap those fries for coleslaw, buttermilk mashed potatoes, black beans and rice, or hush puppies. What would you prefer?"
     },
     {
       "id": "86",
@@ -1266,7 +1268,7 @@
         "sold out of",
         "do you still have"
       ],
-      "answer": "Managers update an 86 board in this bot. Ask about the specific item — or say \"today's specials\" / check the menu link. For live confirmation call (210) 455-3474."
+      "answer": "Ask me about the specific item and I'll tell you if we have it, or I can read today's specials."
     },
     {
       "id": "manager-hours",
@@ -1378,7 +1380,7 @@
         "what is fish city",
         "tell me about the restaurant"
       ],
-      "answer": "Fish City Grill — Culebra serves fresh Gulf Coast seafood with San Antonio hospitality. Friendly folks. Serious seafood. Menu: https://www.fishcitygrill.com/locations/culebra"
+      "answer": "Fish City Grill — Culebra serves fresh Gulf Coast seafood with San Antonio hospitality. Friendly folks. Serious seafood. I can read the menu or today's specials for you."
     }
   ]
 }

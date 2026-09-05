@@ -5,6 +5,8 @@ import {
   guestSpecialsSpeech,
   boardSpecialsReadout,
   getActiveSpecialsPayload,
+  findPayloadDish,
+  spokenPayloadDishDetail,
 } from "../src/engine/specials.js";
 import {
   looksHallucinated,
@@ -41,6 +43,7 @@ assert(
   "parse mahi tacos",
   dishes[0].name === "Jalapeno Bacon Mahi Tacos" && dishes[0].price === "19"
 );
+assert("parse mahi sub-line sides", dishes[0].sides === "jalapeno, bacon, slaw");
 assert("parse redfish nola", dishes[1].name === "Grilled Redfish Nola");
 assert("parse halibut", dishes[2].name === "Maple Chipotle Seared Halibut");
 
@@ -170,4 +173,65 @@ assert(
   payload.dishes.length === 3 &&
     payload.dishes[0].name === "Jalapeno Bacon Mahi Tacos" &&
     !payload.dishes.some((d) => /fish tacos|shrimp tacos|crab/i.test(d.name))
+);
+
+const REDFISH_SCRIPT =
+  "Our Grilled Redfish Nola comes topped with blackened crawfish tails and crawfish cream sauce, and it's served with crispy okra and cornbread on the side!";
+const MAHI_SIDES_SCRIPT =
+  "Our Jalapeno Bacon Mahi Tacos comes topped with sweet chipotle cheddar jack cheese and pico de gallo, and it's served with sweet potato fries on the side!";
+const HALIBUT_SCRIPT =
+  "Our Maple Chipotle Seared Halibut comes topped with maple honey chipotle butter and homestyle sour cream, and it's served with mashed potatoes and honey-glazed rainbow carrots on the side!";
+
+const mahiDish = findPayloadDish("Mahi Tacos");
+assert("spoken mahi sides script", spokenPayloadDishDetail(mahiDish) === MAHI_SIDES_SCRIPT);
+assert(
+  "spoken redfish toppings and sides",
+  spokenPayloadDishDetail(findPayloadDish("Redfish Nola")) === REDFISH_SCRIPT
+);
+assert(
+  "spoken halibut toppings and sides",
+  spokenPayloadDishDetail(findPayloadDish("Seared Halibut")) === HALIBUT_SCRIPT
+);
+assert("lookup mahi tacos hits payload", mahiDish?.name === "Jalapeno Bacon Mahi Tacos");
+assert(
+  "lookup sides question hits payload",
+  findPayloadDish("what sides come with the mahi tacos")?.name ===
+    "Jalapeno Bacon Mahi Tacos"
+);
+assert(
+  "lookup toppings question hits redfish",
+  findPayloadDish("what toppings on the Redfish Nola")?.name === "Grilled Redfish Nola"
+);
+assert("bare tacos does not steal chalkboard", findPayloadDish("tacos") == null);
+assert("fish tacos stay off payload", findPayloadDish("Fish Tacos") == null);
+
+const seeded = getActiveSpecialsPayload({
+  ocrFallback: true,
+  active_specials_payload: {
+    dishes: [{ name: "Jalapeno Bacon Mahi Tacos", price: "19" }],
+  },
+});
+assert(
+  "seed sides merge onto payload dish",
+  seeded.dishes[0].sides === "Sweet Potato Fries" &&
+    seeded.dishes[0].toppings.includes("Pico de Gallo")
+);
+assert(
+  "merged dish speaks chalkboard sides",
+  spokenPayloadDishDetail(seeded.dishes[0]) === MAHI_SIDES_SCRIPT
+);
+assert(
+  "sides ask without sub-line is not price-only",
+  !/\$26/.test(
+    spokenPayloadDishDetail(
+      { name: "Low Country Porkchop", price: "26" },
+      "en",
+      "what sides come with the porkchop"
+    )
+  ) &&
+    spokenPayloadDishDetail(
+      { name: "Low Country Porkchop", price: "26" },
+      "en",
+      "what sides come with the porkchop"
+    ).includes("sides and toppings")
 );

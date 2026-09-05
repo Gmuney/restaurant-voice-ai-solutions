@@ -1,10 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { restaurant, ALLERGY_DISCLAIMER, ALLERGY_DISCLAIMER_ES, hasAllergyDisclaimer, ensureSingleAllergyDisclaimer } from "./reply.js";
+import { restaurant, ALLERGY_DISCLAIMER, ALLERGY_DISCLAIMER_ES, hasAllergyDisclaimer, ensureSingleAllergyDisclaimer, reinstatedGuestReply } from "./reply.js";
 import { asksDishAllergen } from "./dish-allergen.js";
 import { getSoldOut } from "../store.js";
 import { readCachedBoard } from "../board/read-board.js";
-import { getActiveSpecialsPayload } from "./board-payload.js";
+import {
+  getActiveSpecialsPayload,
+  findPayloadDish,
+  spokenPayloadDishDetail,
+} from "./board-payload.js";
 import { KNOWLEDGE_DIR } from "../paths.js";
 
 function withAllergySafety(text, lang = "en") {
@@ -23,12 +27,8 @@ const catalog = JSON.parse(
   readFileSync(join(KNOWLEDGE_DIR, "menu-items.json"), "utf8")
 );
 
-function everydayMenuLink() {
-  return (
-    restaurant.everydayMenuUrl ||
-    restaurant.orderOnlineUrl ||
-    restaurant.menuUrl
-  );
+function everydayMenuVoice() {
+  return "I can walk you through the everyday menu — just tell me what you're hungry for.";
 }
 
 const AVAIL_TRIGGERS =
@@ -157,7 +157,7 @@ function formatCategoryList(cat) {
     (i) => i.category === cat.id && i.onMenu !== false
   );
   if (!items.length) {
-    return `I don't have ${cat.label} loaded yet. Everyday menu: ${everydayMenuLink()}`;
+    return `I don't have ${cat.label} loaded yet. ${everydayMenuVoice()}`;
   }
 
   const lines = items.map((i) => {
@@ -173,7 +173,7 @@ function formatCategoryList(cat) {
     soldCount
       ? `${soldCount} marked sold out on today's 86 board (demo inventory).`
       : "None of these are marked sold out on today's 86 board.",
-    `Everyday menu / order online: ${everydayMenuLink()}`,
+    everydayMenuVoice(),
     `Chalkboard specials are separate — ask for "today's specials".`,
   ].join("\n");
 }
@@ -197,11 +197,11 @@ function formatFullMenu() {
   }
   return [
     `Everyday menu (not chalkboard specials) — ${restaurant.name}`,
-    `Source: ${everydayMenuLink()}`,
+    everydayMenuVoice(),
     "",
     ...blocks,
     "",
-    `Order online: ${everydayMenuLink()}`,
+    everydayMenuVoice(),
     `For chalkboard / daily specials, ask "today's specials".`,
   ]
     .join("\n")
@@ -302,7 +302,7 @@ function answerCookStyle(text) {
     headline,
     ...items.map(itemLine),
     "",
-    `Everyday menu / order: ${everydayMenuLink()}`,
+    everydayMenuVoice(),
     `Chalkboard specials change daily — ask "today's specials" too.`,
   ].join("\n");
 }
@@ -369,7 +369,7 @@ function answerDietaryOptions(text) {
       [
         `I don't have a clear non-seafood list loaded for that filter.`,
         `Please call ${restaurant.phone} — especially with allergies, a manager should help you plan.`,
-        `Everyday menu: ${everydayMenuLink()}`,
+        everydayMenuVoice(),
       ].join("\n")
     );
   }
@@ -393,7 +393,7 @@ function answerDietaryOptions(text) {
     );
   }
 
-  lines.push(`Everyday menu / order: ${everydayMenuLink()}`);
+  lines.push(everydayMenuVoice());
   return withAllergySafety(lines.join("\n"));
 }
 
@@ -431,6 +431,10 @@ export function answerAvailability(rawMessage) {
   const text = String(rawMessage || "").trim();
   if (!text) return null;
   if (asksDishAllergen(text)) return null;
+  const restocked = reinstatedGuestReply(text);
+  if (restocked) return restocked;
+  const boardDish = findPayloadDish(text);
+  if (boardDish) return spokenPayloadDishDetail(boardDish, "en", text);
 
   // Let category lists win over "do you have tacos?"
   if (answerMenuList(text) && findCategory(text) && !findMenuItem(text)) {
@@ -483,12 +487,7 @@ export function answerAvailability(rawMessage) {
   const sold = isItemSoldOut(item);
   if (sold.length) {
     const names = sold.map((s) => s.name).join(", ");
-    return [
-      `We're sold out of ${names} for the day.`,
-      `Managers update the 86 board in this bot (demo stand-in for the restaurant count system).`,
-      `Everyday menu: ${everydayMenuLink()}`,
-      `Or call ${restaurant.phone} to double-check.`,
-    ].join("\n");
+    return `I'm sorry, we're sold out of ${names} tonight.`;
   }
 
   if (!item.onMenu) {
@@ -501,17 +500,18 @@ export function answerAvailability(rawMessage) {
       `Yes — we have ${item.name} on the everyday menu.`,
       item.blurb,
       `Also on today's chalkboard: ${chalk.line}`,
-      `Everyday menu: ${everydayMenuLink()}`,
+      everydayMenuVoice(),
       `Want the chalkboard? Ask for "today's specials".`,
     ].join("\n");
   }
 
   return [
-    `Yes — we have ${item.name} on the everyday menu.`,
+    `Yes — we have ${item.name} tonight.`,
     item.blurb,
-    `It's not marked sold out on today's 86 board.`,
-    `Everyday menu / order: ${everydayMenuLink()}`,
-  ].join("\n");
+    everydayMenuVoice(),
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export { catalog as menuCatalog, AVAIL_TRIGGERS };

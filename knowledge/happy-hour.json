@@ -5,6 +5,8 @@
   "days": "Sunday–Friday",
   "hours": "3pm–6pm",
   "summary": "A curated selection of spirits, fine wines, and artisanal small plates.",
+  "spokenEn": "Happy Hour runs Sunday through Friday from 3 to 6 PM! We feature five-dollar Gold Margaritas and draft beers, half-off wine by the glass, plus food specials like two-dollar oysters, eleven-dollar Crispy Calamari, and our ten-dollar Double Bacon Cheeseburger.",
+  "spokenEs": "¡La hora feliz es de domingo a viernes, de 3 a 6 de la tarde! Tenemos margaritas Gold y cervezas de barril a cinco dólares, vino por copa a mitad de precio, y especiales de comida como ostiones a dos dólares, calamari crujiente a once dólares, y nuestra hamburguesa doble con tocino y queso a diez dólares.",
   "drinks": [
     { "name": "Gold Margarita", "price": "$5" },
     { "name": "Fish City Old Fashioned", "price": "$9", "blurb": "Classic Fish City Old Fashioned" },
@@ -15,5 +17,9 @@
     { "name": "Mystic Mermaid & Select Oysters", "price": "$2" },
     { "name": "Crispy Calamari", "price": "$11" },
     { "name": "Double Bacon Cheeseburger", "price": "$10" }
-  ]
+  ],
+  "burgerDefaultSideEn": "Yes, our Double Bacon Cheeseburger comes served with house-seasoned fries!",
+  "burgerDefaultSideEs": "¡Sí, nuestra hamburguesa doble con tocino y queso se sirve con papas fritas sazonadas de la casa!",
+  "burgerSwapSideEn": "Absolutely! You can swap those fries for coleslaw, buttermilk mashed potatoes, black beans and rice, or hush puppies. What would you prefer?",
+  "burgerSwapSideEs": "¡Por supuesto! Puedes cambiar esas papas por ensalada de col, puré de papa buttermilk, frijoles negros con arroz, o hush puppies. ¿Cuál prefieres?"
 }

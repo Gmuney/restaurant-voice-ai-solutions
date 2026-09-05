@@ -183,8 +183,8 @@ export const ES = {
       `(Ref ${id})`,
     ].join("\n"),
   orderCancel: "Pedido para llevar cancelado.",
-  orderStart: (url) =>
-    `Pedido para llevar — ¿nombre para la orden?\n(O pide en línea: ${url})\nEscribe cancelar para detener.`,
+  orderStart: () =>
+    `Pedido para llevar — ¿nombre para la orden?\nEscribe cancelar para detener.`,
   orderPhone: "¿Teléfono?",
   orderPickup: "¿Hora de recoger? (30 min, 6:15 p. m., lo antes posible)",
   orderItems: "¿Artículos y cantidades?",
@@ -193,8 +193,8 @@ export const ES = {
     `Pedido para llevar enviado a nombre de ${name}. Recoger: ${pickup}.`,
   glitch: (phone) =>
     `Perdón — hubo un fallo. Llama al ${phone}.`,
-  soldOut: (names, menuUrl) =>
-    `Se nos agotó: ${names} por hoy.\n(Tablero de agotados de demostración — después puede sincronizar con el inventario del restaurante.)\nMenú: ${menuUrl}`,
+  soldOut: (names) =>
+    `Lo siento, se nos agotó ${names} esta noche.`,
   greeting: () => "¿En qué puedo ayudarle hoy?",
   help: (name) =>
     [

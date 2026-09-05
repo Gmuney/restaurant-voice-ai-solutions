@@ -9,6 +9,12 @@ import {
   composeEscalationReply,
   needsManagerEscalation,
   happyHourAnswer,
+  happyHourBurgerReply,
+  mentionsHappyHourBurger,
+  reinstatedGuestReply,
+  isSideSwap,
+  sideSwapAnswer,
+  asksHappyHourReadout,
   hoursAnswer,
   asksHours,
   hoursReplyLanguage,
@@ -57,6 +63,8 @@ import {
   answerSpecialsQuestion,
   formatBoardReading,
   readCachedBoard,
+  findPayloadDish,
+  spokenPayloadDishDetail,
 } from "../engine/specials.js";
 import {
   startBoardRefreshLoop,
@@ -357,7 +365,9 @@ async function applyUn86(msg, itemRaw) {
     );
     return;
   }
-  const ok = removeSoldOut(item) || removeSoldOut(itemRaw.trim());
+  const ok =
+    removeSoldOut(item, displayName(msg)) ||
+    removeSoldOut(itemRaw.trim(), displayName(msg));
   await bot.sendMessage(
     msg.chat.id,
     ok ? `Back on menu: ${item}` : `Wasn't on 86 board: ${item}`
@@ -388,12 +398,12 @@ async function handlePlain86(msg) {
     await apply86(msg, m[1]);
     return true;
   }
-  m = text.match(/^un86\s+(.+)$/i);
+  m = text.match(/^(?:un-?86|68)\s+(.+)$/i);
   if (m) {
     await applyUn86(msg, m[1]);
     return true;
   }
-  if (/^86$/i.test(text) || /^un86$/i.test(text)) {
+  if (/^86$/i.test(text) || /^(?:un-?86|68)$/i.test(text)) {
     await bot.sendMessage(
       msg.chat.id,
       'Usage:\n86 redfish — mark sold out\nun86 redfish — put back on\n86 list — show board'
@@ -488,6 +498,11 @@ bot.onText(/^\/86(?:@\w+)?\s+(.+)$/i, async (msg, match) => {
 });
 
 bot.onText(/^\/un86(?:@\w+)?\s+(.+)$/i, async (msg, match) => {
+  rememberManager(msg);
+  await applyUn86(msg, match[1]);
+});
+
+bot.onText(/^\/(?:un-86|68)(?:@\w+)?\s+(.+)$/i, async (msg, match) => {
   rememberManager(msg);
   await applyUn86(msg, match[1]);
 });
@@ -650,7 +665,7 @@ bot.on("callback_query", async (query) => {
       confirmed: `To-go confirmed under ${order.name}. Pickup: ${order.pickupTime}.`,
       preparing: `Kitchen is working on your order (${order.name}). Pickup: ${order.pickupTime}.`,
       ready: `Your to-go order is READY under ${order.name}. See you soon!`,
-      declined: `We couldn't take that to-go order. Call ${restaurant.phone} or try ${restaurant.orderOnlineUrl}`,
+      declined: `We couldn't take that to-go order. Call ${restaurant.phone} and we'll take care of you.`,
     };
     try {
       await bot.sendMessage(order.guestChatId, guestNotes[status]);
@@ -759,14 +774,7 @@ function wantsChalkboardSpecials(text) {
 }
 
 function isSideSwapLike(text) {
-  const t = String(text || "");
-  return (
-    /\b(change|swap|switch|substitut|replace).{0,40}\bsides?\b|\bsides?\b.{0,40}\b(change|swap|switch|substitut|replace)\b/i.test(
-      t
-    ) ||
-    (/\b(cambiar|cambiamos|cambien|cambio|sustituir)\b/i.test(t) &&
-      /\b(papas?|fries|ensalada|salad|sides?|guarnici)/i.test(t))
-  );
+  return isSideSwap(text);
 }
 
 function asksGlutenLike(text) {
@@ -1006,8 +1014,8 @@ async function startOrderWizard(chatId) {
     openCall(
       chatId,
       lang === "es"
-        ? ES.orderStart(restaurant.orderOnlineUrl)
-        : `To-go order — name for the order?\n(Or order online: ${restaurant.orderOnlineUrl})\nType cancel to stop.`
+        ? ES.orderStart()
+        : `To-go order — name for the order?\nType cancel to stop.`
     )
   );
 }
@@ -1264,8 +1272,8 @@ async function handleOrderSession(msg) {
           ? ES.orderSent(data.name, data.pickupTime)
           : `To-go request sent under ${data.name}. Pickup: ${data.pickupTime}.`
         : lang === "es"
-          ? `Por favor llama al ${restaurant.phone} o usa ${restaurant.orderOnlineUrl}`
-          : `Please call ${restaurant.phone} or use ${restaurant.orderOnlineUrl}`
+          ? `Por favor llama al ${restaurant.phone} y te ayudamos.`
+          : `Please call ${restaurant.phone} and we'll take care of you.`
     );
     return true;
   }
@@ -1371,6 +1379,35 @@ bot.on("message", async (msg) => {
       }
     }
 
+    const hhBurgerEarly = happyHourBurgerReply(msg.text, lang);
+    if (hhBurgerEarly) {
+      const spoken = openCall(chatId, hhBurgerEarly);
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: spoken });
+      await bot.sendMessage(chatId, spoken);
+      return;
+    }
+
+    const restocked = reinstatedGuestReply(msg.text, lang);
+    if (restocked) {
+      const spoken = openCall(chatId, restocked);
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: spoken });
+      await bot.sendMessage(chatId, spoken);
+      return;
+    }
+
+    // Named chalkboard dish / sides — payload first, before kids or everyday menu
+    const boardDish = findPayloadDish(msg.text);
+    if (boardDish && !needsManagerEscalation(msg.text)) {
+      const spoken = openCall(chatId, spokenPayloadDishDetail(boardDish, lang, msg.text));
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: spoken });
+      console.log(`[TG] SPECIALS dish lookup → ${boardDish.name}`);
+      await bot.sendMessage(chatId, spoken.slice(0, 4000));
+      return;
+    }
+
     // Kids menu: exactly ONE side; don't volunteer 86'd sides
     if (asksKidsMeal(msg.text) && !needsManagerEscalation(msg.text)) {
       const kidsReply = openCall(chatId, kidsMealReply(msg.text, lang));
@@ -1378,6 +1415,14 @@ bot.on("message", async (msg) => {
       appendChatMessage(chatId, { role: "model", content: kidsReply });
       console.log(`[TG] KIDS meal/sides intent → ${lang}`);
       await bot.sendMessage(chatId, kidsReply.slice(0, 4000));
+      return;
+    }
+
+    if (isSideSwap(msg.text) && !needsManagerEscalation(msg.text)) {
+      const swap = openCall(chatId, sideSwapAnswer(lang));
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: swap });
+      await bot.sendMessage(chatId, swap);
       return;
     }
 
@@ -1449,7 +1494,7 @@ bot.on("message", async (msg) => {
       return;
     }
 
-    if (asksHappyHour(msg.text)) {
+    if (asksHappyHourReadout(msg.text) || asksHappyHour(msg.text)) {
       const hh = openCall(chatId, happyHourAnswer(lang));
       appendChatMessage(chatId, { role: "user", content: msg.text });
       appendChatMessage(chatId, { role: "model", content: hh });
@@ -1510,13 +1555,20 @@ bot.on("message", async (msg) => {
     }
 
     // Availability / 86 demo (trout yes, broccoli sold out, etc.)
-    const availability = answerAvailability(msg.text);
+    // Never run 86-board copy for the Happy Hour burger over the phone.
+    const availability =
+      mentionsHappyHourBurger(msg.text) || isSideSwap(msg.text)
+        ? null
+        : answerAvailability(msg.text);
     if (availability) {
       await sendGuest(chatId, availability, lang);
       return;
     }
 
-    const hits = findSoldOutMatch(msg.text);
+    const hits =
+      mentionsHappyHourBurger(msg.text) || isSideSwap(msg.text)
+        ? []
+        : findSoldOutMatch(msg.text);
     if (
       hits.length &&
       /\b(have|got|serve|order|get|do y'?all|out of|sold out|tienen|hay|agotad)/i.test(
@@ -1526,8 +1578,8 @@ bot.on("message", async (msg) => {
       const soldMsg = openCall(
         chatId,
         lang === "es"
-          ? ES.soldOut(hits.map((h) => h.name).join(", "), restaurant.menuUrl)
-          : `We're sold out of ${hits.map((h) => h.name).join(", ")} for the day.\n(Demo 86 board — later this can sync from the restaurant count system.)\nMenu: ${restaurant.menuUrl}`
+          ? ES.soldOut(hits.map((h) => h.name).join(", "))
+          : `I'm sorry, we're sold out of ${hits.map((h) => h.name).join(", ")} tonight.`
       );
       await bot.sendMessage(chatId, soldMsg);
       return;
@@ -1546,11 +1598,6 @@ bot.on("message", async (msg) => {
       language: lang,
       initial: isTurnOne(chatId),
     });
-    if (getSoldOut().items.length && /\b(menu|men[uú])\b/i.test(msg.text) && !asksKidsMeal(msg.text)) {
-      reply += `\n\nCurrently 86'd today: ${getSoldOut()
-        .items.map((i) => i.name)
-        .join(", ")}`;
-    }
     if (lang === "es") reply = await translateToSpanish(reply);
     reply = openCall(chatId, reply);
     appendChatMessage(chatId, { role: "model", content: reply });
