@@ -47,11 +47,13 @@ assert("parse mahi sub-line sides", dishes[0].sides === "jalapeno, bacon, slaw")
 assert("parse redfish nola", dishes[1].name === "Grilled Redfish Nola");
 assert("parse halibut", dishes[2].name === "Maple Chipotle Seared Halibut");
 
-const FEATURED_SCRIPT =
+const FEATURED_THREE_SCRIPT =
   "Our chalkboard specials feature the Jalapeno Bacon Mahi Tacos for $19, Grilled Redfish Nola for $29, and Maple Chipotle Seared Halibut for $38. Would you like me to tell you more about any of those?";
+const FEATURED_FIVE_SCRIPT =
+  "Our chalkboard specials feature the Jalapeno Bacon Mahi Tacos for $19, Grilled Redfish Nola for $29, Maple Chipotle Seared Halibut for $38, Salmon Cakes for $23, and Low Country Shrimp & Grits for $26. Would you like me to tell you more about any of those?";
 
-const three = spokenSpecialsReadout(dishes.slice(0, 3));
-assert("spoken three-dish readout", three === FEATURED_SCRIPT);
+const three = spokenSpecialsReadout(getActiveSpecialsPayload().dishes.slice(0, 3));
+assert("spoken three-dish readout", three === FEATURED_THREE_SCRIPT);
 
 assert(
   "no lobster roll in chalkboard parse",
@@ -93,7 +95,9 @@ const PHOTO_TALK =
   /text you a photo|Sending the board|snapshot photo|board photo|send you the board|mando una foto|foto del pizarrón|picture of (today'?s )?board/i;
 const GENERIC_SPECIALS_TALK = /\bFish Tacos\b|\bShrimp Tacos\b|\bCrab Cakes\b|\bLobster Roll\b|\bAngel Hair/i;
 
-const fallbackTwo = spokenUpdatingBoardReadout(dishes.slice(0, 2));
+const fallbackTwo = spokenUpdatingBoardReadout(
+  getActiveSpecialsPayload().dishes.slice(0, 2)
+);
 assert(
   "updating-board fallback script",
   fallbackTwo ===
@@ -112,7 +116,7 @@ const speech = guestSpecialsSpeech(lowBoard);
 assert("low-confidence uses verified payload", speech.mode === "payload");
 assert(
   "fallback names come from last verified board",
-  speech.text === FEATURED_SCRIPT && !GENERIC_SPECIALS_TALK.test(speech.text)
+  speech.text === FEATURED_FIVE_SCRIPT && !GENERIC_SPECIALS_TALK.test(speech.text)
 );
 assert("fallback is voice-only", !PHOTO_TALK.test(speech.text));
 assert("low-confidence OCR flagged", isLowConfidenceOcr(lowBoard.text));
@@ -134,8 +138,7 @@ const afterHours = guestSpecialsSpeech({
 assert("after-hours uses verified snapshot speech", afterHours.mode === "payload");
 assert(
   "after-hours dinner script",
-  afterHours.text ===
-    "Our chalkboard specials feature the Jalapeno Bacon Mahi Tacos for $19 and Grilled Redfish Nola for $29. Would you like me to tell you more about any of those?"
+  afterHours.text === FEATURED_FIVE_SCRIPT
 );
 assert("after-hours is voice-only", !PHOTO_TALK.test(afterHours.text));
 
@@ -149,7 +152,7 @@ const currentSpeech = guestSpecialsSpeech({
   ocrFallback: false,
 });
 assert("readable board uses today's priced readout", currentSpeech.mode === "payload");
-assert("priced readout has dollar", currentSpeech.text === FEATURED_SCRIPT);
+assert("priced readout has dollar", currentSpeech.text === FEATURED_FIVE_SCRIPT);
 assert("current readout is voice-only", !PHOTO_TALK.test(currentSpeech.text));
 
 const poisonedBoard = {
@@ -162,7 +165,7 @@ const poisonedBoard = {
   },
 };
 const bound = guestSpecialsSpeech(poisonedBoard);
-assert("payload binding ignores poisoned OCR", bound.text === FEATURED_SCRIPT);
+assert("payload binding ignores poisoned OCR", bound.text === FEATURED_FIVE_SCRIPT);
 assert(
   "payload never speaks generic menu items",
   !GENERIC_SPECIALS_TALK.test(bound.text)
@@ -170,9 +173,9 @@ assert(
 const payload = getActiveSpecialsPayload(poisonedBoard);
 assert(
   "active_specials_payload is the only dish source",
-  payload.dishes.length === 3 &&
+  payload.dishes.length === 5 &&
     payload.dishes[0].name === "Jalapeno Bacon Mahi Tacos" &&
-    !payload.dishes.some((d) => /fish tacos|shrimp tacos|crab/i.test(d.name))
+    !payload.dishes.some((d) => /fish tacos|shrimp tacos|crab|voodoo|porkchop/i.test(d.name))
 );
 
 const REDFISH_SCRIPT =
@@ -191,6 +194,63 @@ assert(
 assert(
   "spoken halibut toppings and sides",
   spokenPayloadDishDetail(findPayloadDish("Seared Halibut")) === HALIBUT_SCRIPT
+);
+const SALMON_CAKES_SCRIPT =
+  "Our Salmon Cakes comes topped with 2 salmon cakes, and it's served with mashed potatoes and green bean almondine on the side!";
+assert(
+  "spoken salmon cakes toppings and sides",
+  spokenPayloadDishDetail(findPayloadDish("salmon cakes")) === SALMON_CAKES_SCRIPT
+);
+assert("lookup salmon cakes hits payload", findPayloadDish("salmon cakes")?.name === "Salmon Cakes");
+assert(
+  "lookup shrimp and grits hits payload",
+  findPayloadDish("low country shrimp and grits")?.name === "Low Country Shrimp & Grits"
+);
+assert(
+  "shrimps and grits alias hits payload",
+  findPayloadDish("do you have shrimp and grits")?.name === "Low Country Shrimp & Grits"
+);
+const SHRIMP_GRITS_SCRIPT =
+  "Our Low Country Shrimp & Grits comes topped with gulf shrimp, cajun butter, and parmesan, and it's served with polenta grits and roasted bell peppers and onions on the side!";
+assert(
+  "spoken shrimp and grits plate build",
+  spokenPayloadDishDetail(findPayloadDish("shrimp and grits")) === SHRIMP_GRITS_SCRIPT
+);
+assert(
+  "shrimp and grits never mentions andouille",
+  !SHRIMP_GRITS_SCRIPT.toLowerCase().includes("andouille")
+);
+const payloadFeatured = getActiveSpecialsPayload()?.dishes || [];
+assert(
+  "spoken full chalkboard payload readout",
+  spokenSpecialsReadout(payloadFeatured) === FEATURED_FIVE_SCRIPT
+);
+assert(
+  "specials intro includes salmon cakes and shrimp and grits",
+  /Salmon Cakes for \$23/.test(spokenSpecialsReadout(payloadFeatured)) &&
+    /Low Country Shrimp & Grits for \$26/.test(spokenSpecialsReadout(payloadFeatured))
+);
+assert(
+  "specials readout omits price-only stubs (not on chalkboard)",
+  !spokenSpecialsReadout(payloadFeatured).includes("Voodoo") &&
+    !getActiveSpecialsPayload()?.dishes.some((d) => /voodoo|porkchop/i.test(d.name))
+);
+const staleBoard = {
+  active_specials_payload: {
+    source: "verified",
+    meal: "dinner",
+    dishes: [
+      ...(getActiveSpecialsPayload()?.dishes || []),
+      { name: "Voodoo Seafood Pasta", price: "27" },
+      { name: "Low Country Porkchop", price: "26" },
+    ],
+  },
+};
+assert(
+  "stale cache voodoo/porkchop never return",
+  !getActiveSpecialsPayload(staleBoard).dishes.some((d) =>
+    /voodoo|porkchop/i.test(d.name)
+  )
 );
 assert("lookup mahi tacos hits payload", mahiDish?.name === "Jalapeno Bacon Mahi Tacos");
 assert(

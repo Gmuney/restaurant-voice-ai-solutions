@@ -6,7 +6,7 @@ import { restaurant } from "../engine/reply.js";
 import { DATA_DIR } from "../paths.js";
 import {
   looksGenericMenuFallback,
-  buildActiveSpecialsPayload,
+  getActiveSpecialsPayload,
 } from "../engine/board-payload.js";
 
 export { looksGenericMenuFallback };
@@ -190,9 +190,15 @@ export function readCachedBoard() {
 
 function writeCache(data) {
   ensureDirs();
-  const payload = buildActiveSpecialsPayload(data);
+  const payload = getActiveSpecialsPayload(data);
   if (payload?.dishes?.length) data.active_specials_payload = payload;
   writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2) + "\n");
+}
+
+/** Reconcile data/board-reading.json payload with knowledge/active-specials.json (e.g. after /addspecial). */
+export function refreshBoardActiveSpecialsFromSeed() {
+  const board = readCachedBoard() || {};
+  writeCache(board);
 }
 
 /** Snapshot-mode freshness: same calendar day + same lunch/dinner window. */
@@ -382,6 +388,22 @@ async function transcribeByRows(fullJpegBuf) {
     text: parts.join("\n\n"),
     source: `ollama:${OLLAMA_MODEL}+rows`,
   };
+}
+
+/** Vision OCR with a custom prompt (e.g. /addspecial single-dish JSON). */
+export async function transcribeImageWithPrompt(imageBuf, prompt, options = {}) {
+  const buf = Buffer.isBuffer(imageBuf) ? imageBuf : Buffer.from(imageBuf);
+  const jpegBuf =
+    options.prepareForBoard === true ? (await prepareJpegForOcr(buf)) || buf : buf;
+  let result = await transcribeWithGemini(jpegBuf, prompt);
+  if (!result) {
+    try {
+      result = await transcribeWithOllama(jpegBuf, prompt);
+    } catch {
+      result = null;
+    }
+  }
+  return result?.text?.trim() || null;
 }
 
 async function runBoardOcr(jpegBuf, originalBuf) {

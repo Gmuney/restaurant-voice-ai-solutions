@@ -11,9 +11,15 @@ import {
 import {
   parseBoardDishes,
   getActiveSpecialsPayload,
+  chalkboardFeaturedDishes,
+  chalkboardIntroDishes,
   findPayloadDish,
   spokenPayloadDishDetail,
 } from "./board-payload.js";
+import {
+  findRemovedChalkboardDish,
+  removedChalkboardGuestReply,
+} from "./chalkboard-manager.js";
 
 export {
   parseBoardDishes,
@@ -29,9 +35,7 @@ function listSpokenItems(items) {
 }
 
 function featuredDishPhrase(dishes, lang = "en") {
-  const list = (Array.isArray(dishes) ? dishes : [])
-    .filter((d) => d?.name && d?.price)
-    .slice(0, 3);
+  const list = chalkboardIntroDishes(dishes);
   return list.map((d, i) => {
     if (lang === "es") {
       return i === 0 ? `el ${d.name} por $${d.price}` : `${d.name} por $${d.price}`;
@@ -68,10 +72,10 @@ export function spokenUpdatingBoardReadout(dishes, lang = "en") {
 
 export function guestSpecialsSpeech(board, lang = "en") {
   const payload = getActiveSpecialsPayload(board);
-  const dishes = payload?.dishes || [];
+  const allListed = chalkboardFeaturedDishes(payload?.dishes || []);
   return {
-    mode: dishes.length ? "payload" : "empty",
-    text: spokenSpecialsReadout(dishes, lang),
+    mode: allListed.length ? "payload" : "empty",
+    text: spokenSpecialsReadout(allListed, lang),
     payload,
   };
 }
@@ -192,6 +196,15 @@ export async function answerSpecialsQuestion(question, opts = {}) {
   const managerText = saved.text || "";
   const speech = guestSpecialsSpeech(board, lang);
   const payload = speech.payload || getActiveSpecialsPayload(board);
+  const takenOff = findRemovedChalkboardDish(q);
+  if (takenOff) {
+    return {
+      kind: "text",
+      text: removedChalkboardGuestReply(lang),
+      board,
+      needsRefreshFollowUp: false,
+    };
+  }
   const named = findPayloadDish(q, payload);
   if (named) {
     return {
@@ -262,6 +275,32 @@ export async function answerSpecialsQuestion(question, opts = {}) {
     needsRefreshFollowUp: false,
     stale: !isBoardCacheFresh(board),
   };
+}
+
+const SPECIALS_QUESTION =
+  /\b(specials?|chalk\s*-?\s*boards?|daily special|specials photo|today'?s special|what'?s on (the )?board|especiales|especiales de hoy|pizarra|tonight'?s special)\b/i;
+
+/** Guest asking for today's chalkboard readout (not Happy Hour-only, not past specials). */
+export function wantsChalkboardSpecialsQuestion(text) {
+  const t = String(text || "");
+  if (
+    /\b(happy\s*hour|hh\b|hora feliz)\b/i.test(t) &&
+    !/\b(chalk\s*-?\s*board|pizarra|daily special|especiales de hoy)\b/i.test(t)
+  ) {
+    return false;
+  }
+  if (
+    /\bpontchartrain\b/i.test(t) ||
+    /\b(past|previous|last week'?s?|other day|other night)\b.{0,40}\bspecials?\b/i.test(t)
+  ) {
+    return false;
+  }
+  return SPECIALS_QUESTION.test(t);
+}
+
+/** Deterministic chalkboard specials script (no AI, no stale cache extras). */
+export function chalkboardSpecialsReply(lang = "en", board = readCachedBoard()) {
+  return guestSpecialsSpeech(board, lang).text;
 }
 
 export { getBoardReading, formatBoardReading, readCachedBoard };

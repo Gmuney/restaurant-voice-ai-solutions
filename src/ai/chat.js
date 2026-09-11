@@ -2,9 +2,25 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildSystemPrompt } from "./system-prompt.js";
 import {
+  buildMenuDataForContext,
+  buildMessagesForLLM,
+  getActiveDishContext,
+} from "./active-dish-context.js";
+import {
+  wantsChalkboardSpecialsQuestion,
+  chalkboardSpecialsReply,
+} from "../engine/specials.js";
+import {
+  findRemovedChalkboardDish,
+  removedChalkboardGuestReply,
+} from "../engine/chalkboard-manager.js";
+import { readCachedBoard } from "../board/read-board.js";
+import {
   applyCallOpening,
   asksSessionReset,
   sessionTerminatedReply,
+  tryDeterministicSideSwapReply,
+  scrubStaleFriesSideSwap,
 } from "../engine/reply.js";
 import {
   getChatMessages,
@@ -12,6 +28,7 @@ import {
   trimChatMessages,
   getChatLang,
   setChatLang,
+  setActiveDish,
 } from "../store.js";
 import { resolveGuestLanguage } from "../engine/language.js";
 
@@ -29,7 +46,6 @@ function loadGeminiApiKey() {
     const p = join(process.env.HOME || "/root", ".gemini/gemini-credentials.json");
     if (!existsSync(p)) return null;
     const raw = readFileSync(p, "utf8").trim();
-    // Plain API key file (not JSON)
     if (/^AIza[0-9A-Za-z_-]{20,}$/.test(raw)) return raw;
     if (raw.startsWith("{")) {
       const cred = JSON.parse(raw);
@@ -52,60 +68,46 @@ const OLLAMA_CHAT_MODEL =
   process.env.BOARD_OCR_MODEL ||
   "gemma3:4b";
 
-async function generateWithOllama(systemInstruction, messages) {
-  const contents = (messages || [])
-    .filter((m) => m?.content)
-    .map((m) => ({
-      role: m.role === "model" || m.role === "assistant" ? "assistant" : "user",
-      content: String(m.content),
-    }));
-  if (!contents.length) return null;
-  try {
-    const res = await fetch(`${OLLAMA_URL}/api/chat`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        model: OLLAMA_CHAT_MODEL,
-        stream: false,
-        messages: [
-          { role: "system", content: systemInstruction },
-          ...contents,
-        ],
-        options: { temperature: 0.3 },
-      }),
-      signal: AbortSignal.timeout(60000),
-    });
-    if (!res.ok) {
-      console.error("[ai-chat] Ollama chat HTTP", res.status);
-      return null;
-    }
-    const data = await res.json().catch(() => ({}));
-    const text = String(data?.message?.content || "").trim();
-    return text || null;
-  } catch (err) {
-    console.error("[ai-chat] Ollama chat failed:", err.message || err);
-    return null;
+/** Split buildMessagesForLLM output into system instruction + turns. */
+export function splitLlmMessages(llmMessages) {
+  const arr = llmMessages || [];
+  if (arr[0]?.role === "system") {
+    return {
+      systemInstruction: String(arr[0].content || ""),
+      turns: arr.slice(1),
+    };
   }
+  return { systemInstruction: "", turns: arr };
 }
 
-/** Convert stored history → Gemini `contents` array (full conversation). */
+/** Convert stored history → Gemini `contents` array (user/model turns only). */
 export function toGeminiContents(messages) {
   return (messages || [])
-    .filter((m) => m && m.content && (m.role === "user" || m.role === "model" || m.role === "assistant"))
+    .filter(
+      (m) =>
+        m &&
+        m.content &&
+        (m.role === "user" || m.role === "model" || m.role === "assistant")
+    )
     .map((m) => ({
-      role: m.role === "assistant" ? "model" : m.role === "model" ? "model" : "user",
+      role:
+        m.role === "assistant" || m.role === "model" ? "model" : "user",
       parts: [{ text: String(m.content) }],
     }));
 }
 
-async function generateWithGemini(systemInstruction, messages) {
+/**
+ * Send the exact array from buildMessagesForLLM() to Gemini.
+ */
+async function generateWithGeminiMessages(llmMessages) {
   const key = loadGeminiApiKey();
   if (!key) {
     console.error("[ai-chat] No Gemini API key");
     return null;
   }
 
-  const contents = toGeminiContents(messages);
+  const { systemInstruction, turns } = splitLlmMessages(llmMessages);
+  const contents = toGeminiContents(turns);
   if (!contents.length) {
     console.error("[ai-chat] Empty contents — refusing to call Gemini");
     return null;
@@ -117,7 +119,6 @@ async function generateWithGemini(systemInstruction, messages) {
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
   const body = {
-    // Must pass the conversation array here — not a single prompt
     systemInstruction: { parts: [{ text: systemInstruction }] },
     contents,
     generationConfig: {
@@ -150,6 +151,46 @@ async function generateWithGemini(systemInstruction, messages) {
   return text || null;
 }
 
+/** Send the exact array from buildMessagesForLLM() to Ollama. */
+async function generateWithOllamaMessages(llmMessages) {
+  const messages = (llmMessages || [])
+    .filter((m) => m?.content)
+    .map((m) => ({
+      role:
+        m.role === "system"
+          ? "system"
+          : m.role === "assistant" || m.role === "model"
+            ? "assistant"
+            : "user",
+      content: String(m.content),
+    }));
+  if (messages.length < 2) return null;
+
+  try {
+    const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: OLLAMA_CHAT_MODEL,
+        stream: false,
+        messages,
+        options: { temperature: 0.3 },
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!res.ok) {
+      console.error("[ai-chat] Ollama chat HTTP", res.status);
+      return null;
+    }
+    const data = await res.json().catch(() => ({}));
+    const text = String(data?.message?.content || "").trim();
+    return text || null;
+  } catch (err) {
+    console.error("[ai-chat] Ollama chat failed:", err.message || err);
+    return null;
+  }
+}
+
 /**
  * Generate a reply using full message history for this chat.
  * Language: English by default; Spanish only after the guest writes in Spanish.
@@ -158,6 +199,35 @@ export async function generateAiReply(chatId, userText, opts = {}) {
   const text = String(userText || "").trim();
   if (!text) return null;
   if (asksSessionReset(text)) return sessionTerminatedReply();
+
+  const languageEarly =
+    opts.language ||
+    resolveGuestLanguage(chatId, text, {
+      getLang: getChatLang,
+      setLang: setChatLang,
+    });
+
+  if (findRemovedChalkboardDish(text)) {
+    appendChatMessage(chatId, { role: "user", content: text });
+    trimChatMessages(chatId, MAX_TURNS);
+    const initial = !getChatMessages(chatId).some((m) => m.role === "model");
+    const det = removedChalkboardGuestReply(languageEarly);
+    const reply = applyCallOpening(det, initial);
+    appendChatMessage(chatId, { role: "model", content: reply });
+    trimChatMessages(chatId, MAX_TURNS);
+    return reply;
+  }
+
+  if (wantsChalkboardSpecialsQuestion(text)) {
+    appendChatMessage(chatId, { role: "user", content: text });
+    trimChatMessages(chatId, MAX_TURNS);
+    const initial = !getChatMessages(chatId).some((m) => m.role === "model");
+    const det = chalkboardSpecialsReply(languageEarly, readCachedBoard());
+    const reply = applyCallOpening(det, initial);
+    appendChatMessage(chatId, { role: "model", content: reply });
+    trimChatMessages(chatId, MAX_TURNS);
+    return reply;
+  }
 
   const language =
     opts.language ||
@@ -171,17 +241,41 @@ export async function generateAiReply(chatId, userText, opts = {}) {
   appendChatMessage(chatId, { role: "user", content: text });
   trimChatMessages(chatId, MAX_TURNS);
 
-  const messages = getChatMessages(chatId);
-  const systemInstruction = buildSystemPrompt({ language });
+  const conversationHistory = getChatMessages(chatId);
+  const menuData = buildMenuDataForContext();
+  const { activeDish } = getActiveDishContext(conversationHistory, menuData);
+  if (activeDish?.name) setActiveDish(chatId, activeDish.name);
 
-  let reply = await generateWithGemini(systemInstruction, messages);
+  const deterministicSide = tryDeterministicSideSwapReply(text, language, {
+    chatId,
+    activeDishName: activeDish?.name,
+    recentMessages: conversationHistory.map((m) => m.content),
+  });
+  if (deterministicSide) {
+    const reply = applyCallOpening(deterministicSide, initial);
+    appendChatMessage(chatId, { role: "model", content: reply });
+    trimChatMessages(chatId, MAX_TURNS);
+    return reply;
+  }
+
+  const llmMessages = buildMessagesForLLM(conversationHistory, menuData);
+
+  let reply = await generateWithGeminiMessages(llmMessages);
   if (!reply) {
     console.log(`[ai-chat] Gemini unavailable — trying Ollama (${OLLAMA_CHAT_MODEL})`);
-    reply = await generateWithOllama(systemInstruction, messages);
+    reply = await generateWithOllamaMessages(llmMessages);
   }
   if (!reply) {
-    // History is kept; caller may fall back to FAQ.
     return null;
+  }
+
+  reply = scrubStaleFriesSideSwap(reply, text, language, {
+    chatId,
+    activeDishName: activeDish?.name,
+    recentMessages: conversationHistory.map((m) => m.content),
+  });
+  if (/\bvoodoo\b/i.test(reply)) {
+    reply = chalkboardSpecialsReply(language, readCachedBoard());
   }
 
   reply = applyCallOpening(reply, initial);
@@ -196,7 +290,6 @@ export async function translateToSpanish(englishText) {
   const text = String(englishText || "").trim();
   if (!text) return text;
 
-  // Prefer local Ollama when Gemini key is missing (common on this VPS).
   const system =
     `Traduce al español natural (estilo México / Sur de EE.UU.) textos de un restaurante para invitados.
 Reglas: solo la traducción, sin comillas ni comentarios. El resultado debe ser 100% español: nunca dejes palabras en inglés como tonight, side, sides, Happy Hour, board, default, manager o ASAP; usa esta noche, guarnición, hora feliz, pizarrón, de forma predeterminada, gerente, lo antes posible. Conserva nombres oficiales de platillos, precios y teléfonos. Nunca traduzcas ni leas una URL. Tono SMS corto.`;
@@ -254,14 +347,77 @@ Reglas: solo la traducción, sin comillas ni comentarios. El resultado debe ser 
 }
 
 /** HTTP-style helper for Express: body must include full `messages` array. */
-export async function generateFromMessagesPayload({ messages, systemInstruction }) {
+export async function generateFromMessagesPayload({
+  messages,
+  systemInstruction,
+  sessionId = null,
+  language = "en",
+}) {
   if (!Array.isArray(messages) || !messages.length) {
     throw new Error("Request body must include messages: [{role, content}, ...]");
   }
-  const instruction = systemInstruction || buildSystemPrompt();
-  const reply = await generateWithGemini(instruction, messages);
+
+  const conversationHistory = messages.filter((m) => m.role !== "system");
+  const lastUser = [...conversationHistory]
+    .reverse()
+    .find((m) => m.role === "user")?.content;
+  const ctxOpts = sessionId
+    ? { chatId: String(sessionId) }
+    : { recentMessages: conversationHistory.map((m) => m.content) };
+  const deterministicSide = lastUser
+    ? tryDeterministicSideSwapReply(String(lastUser), language, ctxOpts)
+    : null;
+  if (deterministicSide) {
+    const initial = !conversationHistory.some((m) => m.role === "model");
+    return {
+      reply: applyCallOpening(deterministicSide, initial),
+      messages: [
+        ...conversationHistory,
+        { role: "model", content: applyCallOpening(deterministicSide, initial) },
+      ],
+      llmMessages: [],
+      deterministic: true,
+    };
+  }
+
+  const menuData = buildMenuDataForContext();
+  let llmMessages = buildMessagesForLLM(conversationHistory, menuData);
+
+  if (systemInstruction) {
+    const extra = String(systemInstruction).trim();
+    if (extra) {
+      llmMessages = [
+        {
+          role: "system",
+          content: `${llmMessages[0].content}\n\n${extra}`,
+        },
+        ...llmMessages.slice(1),
+      ];
+    }
+  }
+
+  let reply = await generateWithGeminiMessages(llmMessages);
   if (!reply) throw new Error("AI generation unavailable");
-  return { reply, messages: [...messages, { role: "model", content: reply }] };
+  if (lastUser) {
+    reply = scrubStaleFriesSideSwap(reply, String(lastUser), language, ctxOpts);
+  }
+  const initial = !conversationHistory.some((m) => m.role === "model");
+  reply = applyCallOpening(reply, initial);
+  return {
+    reply,
+    messages: [...conversationHistory, { role: "model", content: reply }],
+    llmMessages,
+  };
 }
 
-export { buildSystemPrompt, loadGeminiApiKey, OLLAMA_URL, GEMINI_MODEL };
+export {
+  buildSystemPrompt,
+  loadGeminiApiKey,
+  OLLAMA_URL,
+  GEMINI_MODEL,
+  buildMessagesForLLM,
+  getActiveDishContext,
+  buildMenuDataForContext,
+  generateWithGeminiMessages,
+  generateWithOllamaMessages,
+};

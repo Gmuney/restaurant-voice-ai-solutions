@@ -17,7 +17,7 @@ Guests get fast, policy-aware answers. Staff keep control of sold-out items and 
 - Chalkboard specials (photo snapshot + OCR at 11:00am and 4:30pm America/Chicago)
 - Demo reservations (adults/kids, time, booth / table / patio)
 - To-go intake with manager approve / decline
-- Live 86 board (`86 redfish`, `un86 …`, `86 list`)
+- Live 86 board (`/86 redfish`, `/un86 …`, `/86list`)
 - English / Spanish auto-switch
 - Large parties and catering → manager transfer
 
@@ -81,12 +81,12 @@ The bot collects adults / kids, date and time, seating preference, then confirms
 
 | Command | What it does |
 |---------|----------------|
-| `86 redfish` | Mark item sold out |
-| `un86 redfish` | Put item back on |
-| `86 list` | Show today’s 86 board |
+| `/86 redfish` | Mark item sold out |
+| `/un86 redfish` | Put item back on |
+| `/86list` | Show today's 86 board |
 | `/reservations` | Recent bookings |
 | `/orders` | Pending to-go requests |
-| `/specials` · `/setspecials` · `/rereadboard` | Chalkboard photo / text |
+| `/specials` · `/setspecials` · `/addspecial` · `/takeoffspecial` · `/rereadboard` | Chalkboard photo / text; `/addspecial` adds; `/takeoffspecial` removes for tonight (slash only) |
 | `/clearchat` | Reset AI history for this chat |
 | `/managerhelp` | Command list |
 

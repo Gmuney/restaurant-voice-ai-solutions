@@ -20,7 +20,17 @@
       "toppings": "maple honey chipotle butter, homestyle sour cream",
       "sides": "mashed potatoes, honey-glazed rainbow carrots"
     },
-    { "name": "Voodoo Seafood Pasta", "price": "27" },
-    { "name": "Low Country Porkchop", "price": "26" }
+    {
+      "name": "Salmon Cakes",
+      "price": "23",
+      "toppings": "2 salmon cakes",
+      "sides": "mashed potatoes, green bean almondine"
+    },
+    {
+      "name": "Low Country Shrimp & Grits",
+      "price": "26",
+      "toppings": "Gulf shrimp, cajun butter, parmesan",
+      "sides": "polenta grits, roasted bell peppers and onions"
+    }
   ]
 }

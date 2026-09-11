@@ -341,7 +341,7 @@
         "daily special",
         "today's special"
       ],
-      "answer": "Chalkboard / daily specials are separate from the everyday menu. Ask about today's specials and I'll read the featured board dishes for you."
+      "answer": ""
     },
     {
       "id": "oysters",
@@ -1257,7 +1257,7 @@
         "cambiar el side",
         "cambiar los sides"
       ],
-      "answer": "Absolutely! You can swap those fries for coleslaw, buttermilk mashed potatoes, black beans and rice, or hush puppies. What would you prefer?"
+      "answer": ""
     },
     {
       "id": "86",

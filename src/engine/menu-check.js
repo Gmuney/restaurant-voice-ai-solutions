@@ -9,6 +9,10 @@ import {
   findPayloadDish,
   spokenPayloadDishDetail,
 } from "./board-payload.js";
+import {
+  findRemovedChalkboardDish,
+  removedChalkboardGuestReply,
+} from "./chalkboard-manager.js";
 import { KNOWLEDGE_DIR } from "../paths.js";
 
 function withAllergySafety(text, lang = "en") {
@@ -28,7 +32,7 @@ const catalog = JSON.parse(
 );
 
 function everydayMenuVoice() {
-  return "I can walk you through the everyday menu — just tell me what you're hungry for.";
+  return "I can walk you through the menu — just tell me what you're hungry for.";
 }
 
 const AVAIL_TRIGGERS =
@@ -160,21 +164,18 @@ function formatCategoryList(cat) {
     return `I don't have ${cat.label} loaded yet. ${everydayMenuVoice()}`;
   }
 
-  const lines = items.map((i) => {
-    const sold = isItemSoldOut(i);
-    return sold.length ? `• ${i.name} — SOLD OUT today` : `• ${i.name}`;
-  });
-
-  const soldCount = items.filter((i) => isItemSoldOut(i).length).length;
+  const spoken = items
+    .filter((i) => !isItemSoldOut(i).length)
+    .slice(0, 8)
+    .map((i) => i.name);
+  const sample =
+    spoken.length >= 2
+      ? `${spoken.slice(0, -1).join(", ")}, and ${spoken[spoken.length - 1]}`
+      : spoken[0] || cat.label;
   return [
-    `${cat.label} (everyday menu) — ${restaurant.name}:`,
-    ...lines,
-    "",
-    soldCount
-      ? `${soldCount} marked sold out on today's 86 board (demo inventory).`
-      : "None of these are marked sold out on today's 86 board.",
+    `For ${cat.label.toLowerCase()}, we have options like ${sample}.`,
     everydayMenuVoice(),
-    `Chalkboard specials are separate — ask for "today's specials".`,
+    `Today's chalkboard specials are separate — ask for today's specials if you'd like those.`,
   ].join("\n");
 }
 
@@ -196,13 +197,12 @@ function formatFullMenu() {
     );
   }
   return [
-    `Everyday menu (not chalkboard specials) — ${restaurant.name}`,
+    `Here's a quick look at our regular menu at ${restaurant.name}.`,
     everydayMenuVoice(),
     "",
     ...blocks,
     "",
-    everydayMenuVoice(),
-    `For chalkboard / daily specials, ask "today's specials".`,
+    `For today's chalkboard specials, just ask for today's specials.`,
   ]
     .join("\n")
     .slice(0, 3900);
@@ -433,8 +433,17 @@ export function answerAvailability(rawMessage) {
   if (asksDishAllergen(text)) return null;
   const restocked = reinstatedGuestReply(text);
   if (restocked) return restocked;
+  if (findRemovedChalkboardDish(text)) {
+    return removedChalkboardGuestReply("en");
+  }
   const boardDish = findPayloadDish(text);
-  if (boardDish) return spokenPayloadDishDetail(boardDish, "en", text);
+  if (boardDish) {
+    const detail = spokenPayloadDishDetail(boardDish, "en", text);
+    if (/\b(do you have|do y'?all have|got any|have any|still have|serve)\b/i.test(text)) {
+      return `Yes — ${detail}`;
+    }
+    return detail;
+  }
 
   // Let category lists win over "do you have tacos?"
   if (answerMenuList(text) && findCategory(text) && !findMenuItem(text)) {
@@ -490,14 +499,16 @@ export function answerAvailability(rawMessage) {
     return `I'm sorry, we're sold out of ${names} tonight.`;
   }
 
+  const asked86d = /\b86['']?d\b/i.test(text);
+
   if (!item.onMenu) {
-    return `I don't show ${item.name} on the everyday menu right now. Ask about today's specials, or call ${restaurant.phone}.`;
+    return `I don't show ${item.name} on the regular menu right now. Ask about today's specials, or call ${restaurant.phone}.`;
   }
 
   const chalk = findOnChalkboard(item);
   if (chalk?.line) {
     return [
-      `Yes — we have ${item.name} on the everyday menu.`,
+      `Yes — we have ${item.name} on the regular menu.`,
       item.blurb,
       `Also on today's chalkboard: ${chalk.line}`,
       everydayMenuVoice(),
@@ -506,7 +517,9 @@ export function answerAvailability(rawMessage) {
   }
 
   return [
-    `Yes — we have ${item.name} tonight.`,
+    asked86d
+      ? `${item.name} is currently available on our menu tonight!`
+      : `Yes — we have ${item.name} tonight.`,
     item.blurb,
     everydayMenuVoice(),
   ]

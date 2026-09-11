@@ -14,6 +14,7 @@ import {
   reinstatedGuestReply,
   isSideSwap,
   sideSwapAnswer,
+  tryDeterministicSideSwapReply,
   asksHappyHourReadout,
   hoursAnswer,
   asksHours,
@@ -57,6 +58,7 @@ import {
   appendChatMessage,
   getChatLang,
   setChatLang,
+  setActiveDish,
 } from "../store.js";
 import {
   specialsImageUrl,
@@ -66,6 +68,12 @@ import {
   findPayloadDish,
   spokenPayloadDishDetail,
 } from "../engine/specials.js";
+import {
+  managerAddChalkboardSpecial,
+  managerAddChalkboardSpecialFromParsed,
+  handleRemoveSpecialCommand,
+} from "../engine/chalkboard-manager.js";
+import { extractAddSpecialDishFromPhoto } from "../engine/chalkboard-add-ocr.js";
 import {
   startBoardRefreshLoop,
   loadSnapshotImageBuffer,
@@ -187,12 +195,13 @@ function formatOrder(o) {
 function managerHelp() {
   return [
     "Manager commands (DEMO — open access):",
-    '86 board (type with or without /):',
-    '  86 redfish   — mark item sold out (off menu for guests)',
-    "  un86 redfish — put it back on",
-    "  86 list      — show today's 86 board",
-    "  After 86: bot asks if you want a restock order (YES → qty + notes).",
-    "/specials · /setspecials <text> · /rereadboard",
+    "86 board (slash prefix required — plain '86' in chat does not change inventory):",
+    "  /86 redfish   — mark item sold out (off menu for guests)",
+    "  /un86 redfish — put it back on",
+    "  /86list       — show today's 86 board",
+    "/specials · /setspecials · /addspecial · /takeoffspecial <dish> · /rereadboard",
+    "  /addspecial — append/update chalkboard dish (slash only; photo caption /addspecial for OCR)",
+    "  /takeoffspecial — remove a chalkboard dish for tonight (slash only)",
     "/reservations — view recent bookings (demo auto-confirms, no ping) · /orders",
     "/clearchat — End / Reset / Clear Session (sign-off, then wipe history)",
     "/managerhelp",
@@ -228,39 +237,26 @@ function resolve86ItemName(raw) {
   return hit.item.name || typed;
 }
 
+function managerOverrideLabel(itemRaw) {
+  const item = resolve86ItemName(itemRaw);
+  const catalog = findMenuItem(item);
+  return catalog?.item?.name || item;
+}
+
 async function apply86(msg, itemRaw) {
   const item = resolve86ItemName(itemRaw);
   if (!item) {
     await bot.sendMessage(
       msg.chat.id,
-      'Tell me what to 86 — example: 86 redfish'
+      "Tell me what to 86 — example: /86 redfish"
     );
     return;
   }
   addSoldOut(item, displayName(msg));
-  const catalog = findMenuItem(item);
-  const detail = catalog?.item?.name ? ` (${catalog.item.name})` : "";
-  const label = `${item}${detail}`;
+  const label = managerOverrideLabel(itemRaw);
   await bot.sendMessage(
     msg.chat.id,
-    `86'd: ${label}\nGuests will hear we're sold out.`
-  );
-  await notifyManagers(`📣 ${displayName(msg)} 86'd: ${label}`);
-
-  // Ask manager if they want to place a restock / vendor order ASAP
-  setSession(msg.chat.id, {
-    type: "restock",
-    step: "ask",
-    data: {
-      item,
-      label,
-      by: displayName(msg),
-      managerChatId: msg.chat.id,
-    },
-  });
-  await bot.sendMessage(
-    msg.chat.id,
-    `Want to place a restock order for ${label} so we can receive it ASAP and restock for guest orders?\n\nReply YES to start a restock request, or NO to skip.`
+    `[MANAGER OVERRIDE: Inventory updated for ${label}]`
   );
 }
 
@@ -361,18 +357,22 @@ async function applyUn86(msg, itemRaw) {
   if (!item) {
     await bot.sendMessage(
       msg.chat.id,
-      "Tell me what to put back — example: un86 redfish"
+      "Tell me what to put back — example: /un86 redfish"
     );
     return;
   }
   const ok =
     removeSoldOut(item, displayName(msg)) ||
     removeSoldOut(itemRaw.trim(), displayName(msg));
-  await bot.sendMessage(
-    msg.chat.id,
-    ok ? `Back on menu: ${item}` : `Wasn't on 86 board: ${item}`
-  );
-  if (ok) await notifyManagers(`📣 ${displayName(msg)} restored: ${item}`);
+  if (ok) {
+    const label = managerOverrideLabel(itemRaw);
+    await bot.sendMessage(
+      msg.chat.id,
+      `[MANAGER OVERRIDE: Inventory updated for ${label}]`
+    );
+  } else {
+    await bot.sendMessage(msg.chat.id, `Wasn't on 86 board: ${item}`);
+  }
 }
 
 async function send86List(msg) {
@@ -383,34 +383,6 @@ async function send86List(msg) {
       ? `86 board:\n${items.map((i) => `• ${i.name} (by ${i.by})`).join("\n")}`
       : "86 board is clear."
   );
-}
-
-/** Plain-text manager 86 commands: "86 redfish", "un86 redfish", "86 list" */
-async function handlePlain86(msg) {
-  const text = String(msg.text || "").trim();
-  let m = text.match(/^86\s+list$/i) || text.match(/^86list$/i);
-  if (m) {
-    await send86List(msg);
-    return true;
-  }
-  m = text.match(/^86\s+(.+)$/i);
-  if (m) {
-    await apply86(msg, m[1]);
-    return true;
-  }
-  m = text.match(/^(?:un-?86|68)\s+(.+)$/i);
-  if (m) {
-    await applyUn86(msg, m[1]);
-    return true;
-  }
-  if (/^86$/i.test(text) || /^(?:un-?86|68)$/i.test(text)) {
-    await bot.sendMessage(
-      msg.chat.id,
-      'Usage:\n86 redfish — mark sold out\nun86 redfish — put back on\n86 list — show board'
-    );
-    return true;
-  }
-  return false;
 }
 
 async function fetchSpecialsBuffer(url, timeoutMs = 12000) {
@@ -492,9 +464,114 @@ bot.onText(/^\/86list(?:@\w+)?$/i, async (msg) => {
   await send86List(msg);
 });
 
+bot.onText(/^\/86(?:@\w+)?\s+list$/i, async (msg) => {
+  rememberManager(msg);
+  await send86List(msg);
+});
+
 bot.onText(/^\/86(?:@\w+)?\s+(.+)$/i, async (msg, match) => {
   rememberManager(msg);
   await apply86(msg, match[1]);
+});
+
+bot.onText(/^\/86(?:@\w+)?$/i, async (msg) => {
+  rememberManager(msg);
+  await bot.sendMessage(
+    msg.chat.id,
+    "Usage:\n/86 redfish — mark sold out\n/un86 redfish — put back on\n/86list — show board"
+  );
+});
+
+async function downloadTelegramPhoto(fileId) {
+  const file = await bot.getFile(fileId);
+  if (!file?.file_path) throw new Error("Could not read photo from Telegram");
+  const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(60000) });
+  if (!res.ok) throw new Error(`Photo download HTTP ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+async function handleAddSpecialFromPhoto(msg) {
+  rememberManager(msg);
+  const chatId = msg.chat.id;
+  const photos = msg.photo;
+  if (!photos?.length) return false;
+
+  await bot.sendMessage(
+    chatId,
+    "Reading chalk handwriting from your photo (OCR)…"
+  );
+
+  try {
+    const best = photos[photos.length - 1];
+    const buf = await downloadTelegramPhoto(best.file_id);
+    const extracted = await extractAddSpecialDishFromPhoto(buf);
+
+    if (extracted?.status === "ERROR_UNREADABLE") {
+      await bot.sendMessage(chatId, JSON.stringify(extracted, null, 2));
+      return true;
+    }
+
+    await bot.sendMessage(chatId, JSON.stringify(extracted, null, 2));
+
+    const { dish } = managerAddChalkboardSpecialFromParsed(extracted);
+    await bot.sendMessage(
+      chatId,
+      `[MANAGER OVERRIDE: Added "${dish.name}" to Chalkboard Specials]`
+    );
+  } catch (err) {
+    console.error("[addspecial] photo OCR failed:", err.message || err);
+    await bot.sendMessage(
+      chatId,
+      JSON.stringify(
+        {
+          status: "ERROR_UNREADABLE",
+          message:
+            "The photo has severe glare or small handwriting. Please retake the photo closer to the board or type the details manually: /addspecial Dish Name | Price | Sides",
+        },
+        null,
+        2
+      )
+    );
+  }
+  return true;
+}
+
+bot.onText(/^\/addspecial(?:@\w+)?(?:\s+([\s\S]+))?$/i, async (msg, match) => {
+  rememberManager(msg);
+  const raw = (match?.[1] || "").trim();
+  if (!raw) {
+    await bot.sendMessage(
+      msg.chat.id,
+      "Usage:\n/addspecial Dish Name | price | toppings (optional) | sides (optional)\nExample: /addspecial Blackened Trout | 28 | blackening spice | rice, coleslaw\n\nOr send a photo with caption: /addspecial"
+    );
+    return;
+  }
+  try {
+    const { dish } = managerAddChalkboardSpecial(raw);
+    await bot.sendMessage(
+      msg.chat.id,
+      `[MANAGER OVERRIDE: Added "${dish.name}" to Chalkboard Specials]`
+    );
+  } catch (err) {
+    await bot.sendMessage(
+      msg.chat.id,
+      `Could not add special: ${err.message || err}`
+    );
+  }
+});
+
+bot.on("photo", async (msg) => {
+  const caption = String(msg.caption || "").trim();
+  if (!/^\/addspecial(?:@\w+)?(?:\s|$)/i.test(caption)) return;
+  await handleAddSpecialFromPhoto(msg);
+});
+
+bot.onText(/^\/takeoffspecial(?:@\w+)?(?:\s+([\s\S]+))?$/i, async (msg) => {
+  rememberManager(msg);
+  const result = handleRemoveSpecialCommand(msg.text || "", displayName(msg));
+  if (!result?.handled) return;
+  await bot.sendMessage(msg.chat.id, result.text);
 });
 
 bot.onText(/^\/un86(?:@\w+)?\s+(.+)$/i, async (msg, match) => {
@@ -502,9 +579,12 @@ bot.onText(/^\/un86(?:@\w+)?\s+(.+)$/i, async (msg, match) => {
   await applyUn86(msg, match[1]);
 });
 
-bot.onText(/^\/(?:un-86|68)(?:@\w+)?\s+(.+)$/i, async (msg, match) => {
+bot.onText(/^\/un86(?:@\w+)?$/i, async (msg) => {
   rememberManager(msg);
-  await applyUn86(msg, match[1]);
+  await bot.sendMessage(
+    msg.chat.id,
+    "Usage: /un86 redfish — put item back on the menu"
+  );
 });
 
 bot.onText(/^\/reservations(?:@\w+)?$/i, async (msg) => {
@@ -1330,11 +1410,24 @@ bot.on("message", async (msg) => {
     // State reset: "end" / "reset" or abandon incomplete flow with a new generic question
     if (await handleSessionReset(msg)) return;
 
-    // Restock follow-up after 86 (YES/NO → qty → notes)
-    if (await handleRestockSession(msg)) return;
+    // Side substitutions — always before multipart / AI (payload-aware, never generic fries script)
+    const sideSwapOpts = { chatId };
+    const sideSwapEarly = tryDeterministicSideSwapReply(
+      msg.text,
+      lang,
+      sideSwapOpts
+    );
+    if (sideSwapEarly && !needsManagerEscalation(msg.text)) {
+      const swap = openCall(chatId, sideSwapEarly);
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: swap });
+      console.log(`[TG] SIDE SWAP (deterministic) → ${lang}`);
+      await bot.sendMessage(chatId, swap.slice(0, 4000));
+      return;
+    }
 
-    // Manager inventory: "86 redfish" / "un86 redfish" / "86 list" (no slash needed)
-    if (await handlePlain86(msg)) return;
+    // Restock follow-up after legacy 86 flow (YES/NO → qty → notes)
+    if (await handleRestockSession(msg)) return;
 
     // Multi-intent (Spanish or English): answer every part in one reply, hours first
     if (isMultiIntentQuery(msg.text) && !needsManagerEscalation(msg.text)) {
@@ -1397,9 +1490,22 @@ bot.on("message", async (msg) => {
       return;
     }
 
-    // Named chalkboard dish / sides — payload first, before kids or everyday menu
+    // Named chalkboard dish / sides — side swaps before generic dish readout (match generateReply order)
     const boardDish = findPayloadDish(msg.text);
+    if (boardDish && isSideSwap(msg.text) && !needsManagerEscalation(msg.text)) {
+      setActiveDish(chatId, boardDish.name);
+      const swap = openCall(
+        chatId,
+        sideSwapAnswer(msg.text, lang, { chatId })
+      );
+      appendChatMessage(chatId, { role: "user", content: msg.text });
+      appendChatMessage(chatId, { role: "model", content: swap });
+      console.log(`[TG] SPECIALS side swap → ${boardDish.name}`);
+      await bot.sendMessage(chatId, swap.slice(0, 4000));
+      return;
+    }
     if (boardDish && !needsManagerEscalation(msg.text)) {
+      setActiveDish(chatId, boardDish.name);
       const spoken = openCall(chatId, spokenPayloadDishDetail(boardDish, lang, msg.text));
       appendChatMessage(chatId, { role: "user", content: msg.text });
       appendChatMessage(chatId, { role: "model", content: spoken });
@@ -1419,7 +1525,10 @@ bot.on("message", async (msg) => {
     }
 
     if (isSideSwap(msg.text) && !needsManagerEscalation(msg.text)) {
-      const swap = openCall(chatId, sideSwapAnswer(lang));
+      const swap = openCall(
+        chatId,
+        sideSwapAnswer(msg.text, lang, { chatId })
+      );
       appendChatMessage(chatId, { role: "user", content: msg.text });
       appendChatMessage(chatId, { role: "model", content: swap });
       await bot.sendMessage(chatId, swap);
@@ -1484,6 +1593,7 @@ bot.on("message", async (msg) => {
       const fallback = generateReply(msg.text, {
         language: lang,
         initial: isTurnOne(chatId),
+        chatId,
       });
       const localized = openCall(
         chatId,
@@ -1597,6 +1707,7 @@ bot.on("message", async (msg) => {
     let reply = generateReply(msg.text, {
       language: lang,
       initial: isTurnOne(chatId),
+      chatId,
     });
     if (lang === "es") reply = await translateToSpanish(reply);
     reply = openCall(chatId, reply);

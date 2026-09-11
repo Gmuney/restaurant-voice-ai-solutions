@@ -142,6 +142,7 @@ app.post("/chat", async (req, res) => {
     const result = await generateFromMessagesPayload({
       systemInstruction: YOUR_SYSTEM_PROMPT,
       messages, // full conversation array → Gemini contents
+      sessionId: body.sessionId ? String(body.sessionId) : null,
     });
 
     if (result?.reply) {

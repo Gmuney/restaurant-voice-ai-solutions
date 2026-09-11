@@ -1,10 +1,36 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { KNOWLEDGE_DIR } from "../paths.js";
-import { getSoldOut, findReinstatedMatch, findSoldOutMatch } from "../store.js";
+import {
+  getSoldOut,
+  findReinstatedMatch,
+  findSoldOutMatch,
+  getChatMessages,
+  getActiveDish,
+  setActiveDish,
+} from "../store.js";
 import { hasClearSpanish, isPureGreeting, isTexasEnglishSlang } from "./language.js";
 import { asksDishAllergen, dishAllergenReply } from "./dish-allergen.js";
-import { findPayloadDish, spokenPayloadDishDetail } from "./board-payload.js";
+import {
+  findPayloadDish,
+  spokenPayloadDishDetail,
+  resolveActivePayloadDish,
+  conversationalSideSubstitutionReply,
+} from "./board-payload.js";
+import {
+  isSideSubstitutionQuery,
+  contextualSideSubstitutionQuery,
+  parseGuestIntent,
+  dishEntityForIntent,
+} from "./intent-parser.js";
+import {
+  wantsChalkboardSpecialsQuestion,
+  chalkboardSpecialsReply,
+} from "./specials.js";
+import {
+  findRemovedChalkboardDish,
+  removedChalkboardGuestReply,
+} from "./chalkboard-manager.js";
 
 const restaurant = JSON.parse(
   readFileSync(join(KNOWLEDGE_DIR, "restaurant.json"), "utf8")
@@ -88,6 +114,8 @@ function stripSpokenUrls(text) {
   body = body.replace(/\b[\w-]*cardfoundry\.[^\s.,;:]+/gi, "");
   body = body.replace(/\(?\s*(?:demo\s+)?86 board[^.()\n]*/gi, "");
   body = body.replace(/\beveryday menu\b/gi, "menu");
+  body = body.replace(/\b(?:kids[- ]?meal|a la carte)\b/gi, "");
+  body = body.replace(/\([^)]*everyday menu[^)]*\)/gi, "");
   body = body.replace(/\bSide option\.?/gi, "");
   body = body.replace(/\bmarked sold out on today's[^.!\n]*/gi, "");
   body = body.replace(/\bun-?86\b/gi, "");
@@ -402,7 +430,7 @@ function needsManagerEscalation(text) {
 }
 
 /** Concise 1–2 sentence answers for safe general/menu questions (before transfer). */
-function standardEscalationAnswers(text, lang = "en") {
+function standardEscalationAnswers(text, lang = "en", opts = {}) {
   const bits = [];
   const asksDog = /\b(dog|dogs|pet|pets|perro|perros|mascota)\b/i.test(text);
   const asksPatio =
@@ -457,9 +485,11 @@ function standardEscalationAnswers(text, lang = "en") {
   else if (asksKidsMeal(text)) bits.push(kidsMealReply(text, lang));
   if (asksParking(text)) bits.push(parkingAnswer(lang));
   if (asksHappyHourReadout(text)) bits.push(happyHourAnswer(lang));
-  const hhBurgerEsc = happyHourBurgerReply(text, lang);
+  const hhBurgerEsc = happyHourBurgerReply(text, lang, opts);
   if (hhBurgerEsc) bits.push(hhBurgerEsc);
-  else if (isSideSwap(text) && !asksKidsMeal(text)) bits.push(sideSwapAnswer(lang));
+  else if (isSideSwap(text) && !asksKidsMeal(text)) {
+    bits.push(sideSwapAnswer(text, lang, opts));
+  }
   if (asksCateringEscalation(text) && !isLargeOnlineParty(extractPartySize(text))) {
     // Brief catering confirm before transfer — no phone/call prompt
     bits.push(
@@ -594,7 +624,7 @@ function findAllFaq(lower) {
   return kept.map((h) => h.item);
 }
 
-function resolveAnswer(item, lang = "en", guestText = "") {
+function resolveAnswer(item, lang = "en", guestText = "", opts = {}) {
   let answer;
   if (item.type === "hours") answer = hoursAnswer(lang, { text: guestText });
   else if (item.type === "kids-meal" || item.id === "kids-menu")
@@ -610,6 +640,10 @@ function resolveAnswer(item, lang = "en", guestText = "") {
     answer = largePartyAnswer(null, lang);
   else if (item.id === "parking" || item.id === "parking-fee")
     answer = parkingAnswer(lang);
+  else if (item.id === "side-swap")
+    answer = sideSwapAnswer(guestText, lang, opts);
+  else if (item.id === "specials")
+    answer = chalkboardSpecialsReply(lang);
   else answer = item.answer || restaurant.callUs;
   return withAllergyDisclaimer(answer, item, lang);
 }
@@ -698,17 +732,37 @@ function happyHourBurgerDefaultSideAnswer(lang = "en") {
   );
 }
 
-function happyHourBurgerSwapSideAnswer(lang = "en") {
-  return sideSwapAnswer(lang);
+function happyHourBurgerSwapSideAnswer(text, lang = "en", opts = {}) {
+  return sideSwapAnswer(text, lang, {
+    ...opts,
+    forceHappyHourBurger: true,
+  });
 }
 
 /** Spoken HH burger side answer, or null if this is not that question. */
-function happyHourBurgerReply(text, lang = "en") {
-  if (asksHappyHourBurgerSideSwap(text)) return happyHourBurgerSwapSideAnswer(lang);
+function happyHourBurgerReply(text, lang = "en", opts = {}) {
+  if (asksHappyHourBurgerSideSwap(text)) {
+    return happyHourBurgerSwapSideAnswer(text, lang, opts);
+  }
   if (asksHappyHourBurgerDefaultSide(text)) {
     return happyHourBurgerDefaultSideAnswer(lang);
   }
   return null;
+}
+
+function sideSwapContextOpts(opts = {}) {
+  const out = { ...opts };
+  if (opts.chatId) {
+    if (!out.recentMessages?.length) {
+      out.recentMessages = getChatMessages(opts.chatId).map((m) => m.content);
+    }
+    if (!out.activeDishName) out.activeDishName = getActiveDish(opts.chatId);
+  }
+  return out;
+}
+
+function rememberActiveDish(opts, dish) {
+  if (dish?.name && opts.chatId) setActiveDish(opts.chatId, dish.name);
 }
 
 function asksInventoryAvailability(text) {
@@ -757,46 +811,60 @@ function isSeatingPreference(text) {
   );
 }
 
-function isSideSwap(text) {
-  const t = String(text || "");
-  if (
-    /\b(change|changed|swap|swapped|switch|switched|substitut\w*|replace|replaced|different|another|switch out|change out|swap out|switch(?:ed)?\s+out).{0,40}\b(sides?|fries|papas?|potatoes)\b|\b(sides?|fries|papas?|potatoes)\b.{0,40}\b(change|changed|swap|swapped|switch|switched|substitut\w*|replace|replaced|different|another)\b/i.test(
-      t
-    )
-  ) {
-    return true;
-  }
-  if (
-    /\b(cambiar|cambiamos|cambien|cambio|sustituir|substituir|reemplazar)\b/i.test(t) &&
-    /\b(papas?|papa|fries|potato|potatoes|ensalada|salad|sides?|guarnici[oó]n|guarniciones|pure|pur[eé]|arroz|frijoles|spinach|espinaca|broccoli|br[oó]coli|mac)\b/i.test(
-      t
-    )
-  ) {
-    return true;
-  }
-  if (
-    /\b(papas?|fries|potato|potatoes).{0,40}\b(por|for|con)\s+(ensalada|salad|vegetable|verdura)/i.test(
-      t
-    )
-  ) {
-    return true;
-  }
-  return false;
+const GENERIC_FRIES_SIDE_SWAP =
+  /\bswap those fries for coleslaw|you can swap those fries\b/i;
+
+function guestAskedSideSubstitution(text, opts = {}) {
+  const q = String(text || "");
+  if (isSideSubstitutionQuery(q)) return true;
+  return contextualSideSubstitutionQuery(q, sideSwapContextOpts(opts));
 }
 
-function sideSwapAnswer(lang = "en") {
-  if (lang === "es") {
-    return (
-      happyHour.burgerSwapSideEs ||
-      restaurant.policies?.sideSubstitutionsEs ||
-      "¡Por supuesto! Puedes cambiar esas papas por ensalada de col, puré de papa buttermilk, frijoles negros con arroz, o hush puppies. ¿Cuál prefieres?"
-    );
+function isSideSwap(text, opts) {
+  if (opts && typeof opts === "object") return guestAskedSideSubstitution(text, opts);
+  return isSideSubstitutionQuery(text);
+}
+
+/** Payload-aware side swap when we know the dish; null if we must ask which dish. */
+function tryDeterministicSideSwapReply(text = "", lang = "en", opts = {}) {
+  const ctx = sideSwapContextOpts(opts);
+  if (!guestAskedSideSubstitution(text, ctx)) return null;
+  const ans = sideSwapAnswer(text, lang, ctx);
+  if (!ans || /^Which dish are you looking at/i.test(ans)) return null;
+  return ans;
+}
+
+function scrubStaleFriesSideSwap(reply, guestText, lang = "en", opts = {}) {
+  const body = String(reply || "");
+  if (!GENERIC_FRIES_SIDE_SWAP.test(body)) return body;
+  const fixed = tryDeterministicSideSwapReply(guestText, lang, opts);
+  return fixed || body;
+}
+
+function sideSwapAnswer(text = "", lang = "en", opts = {}) {
+  const ctx = sideSwapContextOpts(opts);
+  const query = String(text || "").trim();
+  const parsed = parseGuestIntent(query, ctx);
+  if (parsed) {
+    const dish = dishEntityForIntent(parsed);
+    if (dish?.name) {
+      rememberActiveDish(ctx, dish.name);
+      const bound = conversationalSideSubstitutionReply(dish, lang, query);
+      if (bound) return bound;
+    }
   }
-  return (
-    happyHour.burgerSwapSideEn ||
-    restaurant.policies?.sideSubstitutions ||
-    "Absolutely! You can swap those fries for coleslaw, buttermilk mashed potatoes, black beans and rice, or hush puppies. What would you prefer?"
-  );
+
+  if (isSideSubstitutionQuery(query)) {
+    if (lang === "es") {
+      return "¿De qué platillo hablamos? Así le confirmo las guarniciones correctas antes de cambiarlas.";
+    }
+    return "Which dish are you looking at? I want to confirm the right sides before we swap anything.";
+  }
+
+  if (lang === "es") {
+    return "¿De qué platillo hablamos? Así le confirmo las guarniciones correctas antes de cambiarlas.";
+  }
+  return "Which dish are you looking at? I want to confirm the right sides before we swap anything.";
 }
 
 const KIDS_ENTREE_CHOICES = [
@@ -872,12 +940,31 @@ function asksKidsMeal(text) {
 /** List named kids sides only when the guest asks what sides / side options. */
 function asksKidsSideList(text) {
   const t = String(text || "");
-  return (
-    /\bwhat sides come with(\s+(that|this|it|the kids?( meal| menu)?|a kids? meal))?\b/i.test(
+  if (findPayloadDish(t)) return false;
+
+  if (
+    /\bwhat sides come with(\s+(that|this|it|the kids?( meal| menu)?|a kids? meal))?\s*([?.!]|$)/i.test(
       t
-    ) ||
-    /\bwhat (comes|come) with (a |the )?(kids?|that|this)\b/i.test(t) ||
-    /\b(what|which) (are the |kids? )?(side options|sides)\b/i.test(t) ||
+    )
+  ) {
+    return true;
+  }
+  if (/\bwhat (comes|come) with (a |the )?(kids?|that|this)\b/i.test(t)) {
+    return true;
+  }
+  if (/\b(what|which) (are the |kids? )?(side options|sides)\b/i.test(t)) {
+    if (/\b(kids?|children|ni[nñ]os?|kids? meal|kids? menu|menu infantil)\b/i.test(t)) {
+      return true;
+    }
+    if (
+      /\bwhat are the side options\b/i.test(t) &&
+      !/\b(for|on|with)\s+(the|our|a)\s+[a-z]{4,}/i.test(t)
+    ) {
+      return true;
+    }
+    return false;
+  }
+  return (
     /\b(side options|kids? (meal |menu )?sides|sides? (for|with) (the )?(kids?|children)|list (the )?sides)\b/i.test(
       t
     ) ||
@@ -1023,7 +1110,7 @@ function composeEscalationReply(rawMessage, opts = {}) {
   const text = String(rawMessage || "").trim();
   const partySize = opts.partySize ?? extractPartySize(text);
 
-  const standard = standardEscalationAnswers(text, lang);
+  const standard = standardEscalationAnswers(text, lang, opts);
   const handoff = managerEscalationLine(lang, partySize);
 
   const blocks = [];
@@ -1127,7 +1214,7 @@ function composeMultiPartReply(rawMessage, opts = {}) {
   } else {
     const hhBurger = happyHourBurgerReply(text, lang);
     if (hhBurger) parts.push(hhBurger);
-    else if (isSideSwap(text)) parts.push(sideSwapAnswer(lang));
+    else if (isSideSwap(text, opts)) parts.push(sideSwapAnswer(text, lang, opts));
   }
   if (asksHappyHourReadout(text)) parts.push(happyHourAnswer(lang));
   if (asksParking(text)) parts.push(parkingAnswer(lang));
@@ -1173,7 +1260,7 @@ function composeMultiPartReply(rawMessage, opts = {}) {
     return true;
   });
   for (const hit of extra.slice(0, 4)) {
-    const ans = resolveAnswer(hit, lang, text);
+    const ans = resolveAnswer(hit, lang, text, opts);
     if (ans && !parts.some((p) => p.includes(ans.slice(0, 40)))) {
       parts.push(ans);
     }
@@ -1357,15 +1444,28 @@ function generateReplyBody(rawMessage, opts = {}) {
   }
 
   // Happy Hour burger sides — before chalkboard, kids menu, or generic side dumps
-  const hhBurger = happyHourBurgerReply(text, lang);
+  const hhBurger = happyHourBurgerReply(text, lang, opts);
   if (hhBurger) return hhBurger;
 
   const restocked = reinstatedGuestReply(text, lang);
   if (restocked) return restocked;
 
+  if (findRemovedChalkboardDish(text)) {
+    return removedChalkboardGuestReply(lang);
+  }
+
+  if (wantsChalkboardSpecialsQuestion(text)) {
+    return chalkboardSpecialsReply(lang);
+  }
+
   // Named chalkboard item / sides — payload first, before kids or everyday menu
   const boardDish = findPayloadDish(text);
+  if (boardDish && isSideSwap(text, opts)) {
+    rememberActiveDish(opts, boardDish);
+    return sideSwapAnswer(text, lang, opts);
+  }
   if (boardDish) {
+    rememberActiveDish(opts, boardDish);
     return spokenPayloadDishDetail(boardDish, lang, text);
   }
 
@@ -1411,12 +1511,12 @@ function generateReplyBody(rawMessage, opts = {}) {
     ].join("\n");
   }
 
-  if (isSideSwap(text)) {
-    const hhBurgerSwap = happyHourBurgerReply(text, lang);
+  if (isSideSwap(text, opts)) {
+    const hhBurgerSwap = happyHourBurgerReply(text, lang, opts);
     if (hhBurgerSwap) return hhBurgerSwap;
     const pastCombo = answerPastSpecialOrCustomMod(text, { language: lang });
     if (pastCombo && asksPastSpecial(text)) return pastCombo;
-    return sideSwapAnswer(lang);
+    return sideSwapAnswer(text, lang, opts);
   }
 
   const pastOrCustom = answerPastSpecialOrCustomMod(text, { language: lang });
@@ -1434,7 +1534,7 @@ function generateReplyBody(rawMessage, opts = {}) {
     );
     const parts = [largePartyAnswer(partySize, lang)];
     for (const hit of otherHits) {
-      parts.push(resolveAnswer(hit, lang, text));
+      parts.push(resolveAnswer(hit, lang, text, opts));
     }
     if (isSeatingPreference(text) || isCustomKitchenMod(text)) {
       parts.push(MANAGER_OPTION);
@@ -1444,7 +1544,7 @@ function generateReplyBody(rawMessage, opts = {}) {
 
   const hits = findAllFaq(lower);
   if (hits.length >= 2) {
-    const parts = hits.map((h) => resolveAnswer(h, lang, text));
+    const parts = hits.map((h) => resolveAnswer(h, lang, text, opts));
     if (isSeatingPreference(text) || isCustomKitchenMod(text)) {
       parts.push(MANAGER_OPTION);
     }
@@ -1453,7 +1553,7 @@ function generateReplyBody(rawMessage, opts = {}) {
   }
 
   if (hits.length === 1) {
-    let answer = resolveAnswer(hits[0], lang, text);
+    let answer = resolveAnswer(hits[0], lang, text, opts);
     if (isSeatingPreference(text) || isCustomKitchenMod(text)) {
       answer = managerFallbackAnswer([answer]);
     }
@@ -1497,6 +1597,10 @@ export {
   mentionsHappyHourBurger,
   isSideSwap,
   sideSwapAnswer,
+  tryDeterministicSideSwapReply,
+  scrubStaleFriesSideSwap,
+  guestAskedSideSubstitution,
+  parseGuestIntent,
   asksHappyHourReadout,
   parkingAnswer,
   hoursAnswer,

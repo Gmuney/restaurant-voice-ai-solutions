@@ -380,7 +380,9 @@ if (
   !spanishMulti.includes("nuestra cocina y restaurante cierran a las") ||
   !/esta noche/.test(spanishMulti) ||
   /\btonight\b/i.test(spanishMulti) ||
-  !/por supuesto|puedes cambiar esas papas|cuál prefieres/i.test(spanishMulti)
+  !/por supuesto|puedes cambiar|cuál prefieres|de qué platillo hablamos|guarniciones correctas/i.test(
+    spanishMulti
+  )
 ) {
   console.error("FAIL Spanish multi-intent must answer hours AND side swap in Spanish");
   console.error("GOT:", spanishMulti);
@@ -391,7 +393,9 @@ if (
   process.exitCode = 1;
 } else if (
   spanishMulti.indexOf("Como hoy es") >
-  spanishMulti.search(/por supuesto|puedes cambiar esas papas|cuál prefieres/i)
+    spanishMulti.search(
+      /por supuesto|puedes cambiar|cuál prefieres|de qué platillo hablamos|guarniciones correctas/i
+    )
 ) {
   console.error("FAIL Spanish multi-intent should lead with closing hours");
   console.error("GOT:", spanishMulti);
@@ -502,15 +506,28 @@ if (
 const mahiSides = generateReply("what sides come with the mahi tacos");
 if (
   !mahiSides.includes("sweet potato fries") ||
-  !mahiSides.includes("pico de gallo") ||
+  mahiSides.includes("pico de gallo") ||
   mahiSides.includes("Kids Fish Sticks") ||
+  /everyday menu|86 board|kids[- ]?meal/i.test(mahiSides) ||
   /\$19/.test(mahiSides)
 ) {
-  console.error("FAIL mahi sides must list the full sub-line, not kids menu or price-only");
+  console.error("FAIL mahi sides ask must list payload sides only, not toppings or menu dumps");
   console.error("GOT:", mahiSides);
   process.exitCode = 1;
 } else {
   console.log("PASS mahi sides stay on the chalkboard payload");
+}
+const redfishSidesOnly = generateReply("what sides come with the Grilled Redfish Nola");
+if (
+  !/crispy okra/i.test(redfishSidesOnly) ||
+  !/cornbread/i.test(redfishSidesOnly) ||
+  /crawfish|everyday menu|86 board/i.test(redfishSidesOnly)
+) {
+  console.error("FAIL redfish sides ask must be payload sides only");
+  console.error("GOT:", redfishSidesOnly);
+  process.exitCode = 1;
+} else {
+  console.log("PASS redfish sides-only payload readout");
 }
 const redfishSides = generateReply("what toppings come with the Redfish Nola");
 if (
@@ -526,25 +543,67 @@ if (
 } else {
   console.log("PASS Redfish Nola lists toppings and sides");
 }
+const SALMON_CAKES_SCRIPT =
+  "Our Salmon Cakes comes topped with 2 salmon cakes, and it's served with mashed potatoes and green bean almondine on the side!";
+const salmonCakesSides = generateReply("what sides come with the salmon cakes");
+if (
+  salmonCakesSides !==
+    "The Salmon Cakes comes with 2 salmon cakes, served with mashed potatoes and green bean almondine on the side!" ||
+  /Kids Menu/i.test(salmonCakesSides)
+) {
+  console.error("FAIL salmon cakes sides ask must use chalkboard payload, not kids menu");
+  console.error("GOT:", salmonCakesSides);
+  process.exitCode = 1;
+} else {
+  console.log("PASS salmon cakes sides ask");
+}
+const salmonCakesDetail = generateReply("tell me about the salmon cakes");
+if (salmonCakesDetail !== SALMON_CAKES_SCRIPT) {
+  console.error("FAIL salmon cakes detail readout");
+  console.error("GOT:", salmonCakesDetail);
+  process.exitCode = 1;
+} else {
+  console.log("PASS salmon cakes chalkboard detail");
+}
+
+const todaysSpecials = generateReply("what are the specials today");
+if (
+  !/Low Country Shrimp & Grits for \$26/.test(todaysSpecials) ||
+  /andouille/i.test(todaysSpecials)
+) {
+  console.error("FAIL today's specials must read full chalkboard including shrimp & grits");
+  console.error("GOT:", todaysSpecials);
+  process.exitCode = 1;
+} else {
+  console.log("PASS today's specials full chalkboard readout");
+}
+
 const halibutSides = generateReply("Seared Halibut sides");
 if (
   !halibutSides.includes("mashed potatoes") ||
   !halibutSides.includes("honey-glazed rainbow carrots") ||
-  !halibutSides.includes("maple honey chipotle butter") ||
-  !halibutSides.includes("homestyle sour cream") ||
+  halibutSides.includes("maple honey chipotle butter") ||
+  halibutSides.includes("homestyle sour cream") ||
   /\$38/.test(halibutSides)
 ) {
-  console.error("FAIL Halibut must speak every sub-line item");
+  console.error("FAIL Halibut sides ask must list payload sides only");
   console.error("GOT:", halibutSides);
   process.exitCode = 1;
 } else {
-  console.log("PASS Halibut lists toppings and sides");
+  console.log("PASS Halibut sides-only payload readout");
 }
 
 const HH_BURGER_SIDE =
   "Yes, our Double Bacon Cheeseburger comes served with house-seasoned fries!";
 const HH_BURGER_SWAP =
-  "Absolutely! You can swap those fries for coleslaw, buttermilk mashed potatoes, black beans and rice, or hush puppies. What would you prefer?";
+  "Absolutely — the Double Bacon Cheeseburger comes with house-seasoned fries. You can swap that for apple cider coleslaw, Cuban black beans and rice, or buttermilk mashed potatoes. What would you like instead?";
+const MAHI_SWAP =
+  "Absolutely — the Mahi Tacos come with sweet potato fries. You can swap that for apple cider coleslaw, Hush Puppies, or Cuban black beans and rice. What would you like instead?";
+const REDFISH_SWAP =
+  "Happy to help — the Nola comes with crispy okra and cornbread on the side. Feel free to trade either or both for apple cider coleslaw, Cuban black beans and rice, or Hush Puppies. What are you in the mood for?";
+const HALIBUT_SWAP =
+  "Happy to help — the Halibut comes with mashed potatoes and honey-glazed rainbow carrots on the side. Feel free to trade either or both for apple cider coleslaw, Cuban black beans and rice, or house-seasoned fries. What are you in the mood for?";
+
 for (const q of [
   "Does the Double Bacon Cheeseburger come with a side?",
   "what sides come with the double bacon cheeseburger",
@@ -566,7 +625,6 @@ for (const q of [
   "Can I change the side on the Double Bacon Cheeseburger?",
   "can I substitute the fries on the happy hour burger",
   "can I swap the side on the bacon cheeseburger",
-  "Can I switch out the fries?",
 ]) {
   const a = generateReply(q);
   if (a !== HH_BURGER_SWAP) {
@@ -583,6 +641,70 @@ for (const q of [
   } else {
     console.log("PASS HH burger side swap:", q);
   }
+}
+
+const friesOnlySwap = generateReply("Can I switch out the fries?", {
+  recentMessages: ["does the happy hour burger come with fries"],
+});
+if (friesOnlySwap !== HH_BURGER_SWAP) {
+  console.error("FAIL side swap with fries must bind to active dish context");
+  console.error("GOT:", friesOnlySwap);
+  process.exitCode = 1;
+} else {
+  console.log("PASS side swap binds to conversation dish context");
+}
+
+const bareFriesSwap = generateReply("Can I switch out the fries?");
+if (/swap those fries for coleslaw/i.test(bareFriesSwap)) {
+  console.error("FAIL must not assume fries without active dish context");
+  console.error("GOT:", bareFriesSwap);
+  process.exitCode = 1;
+} else {
+  console.log("PASS side swap without context does not hardcode fries");
+}
+
+for (const [q, expected, label, opts] of [
+  ["can I swap the side on the mahi tacos", MAHI_SWAP, "mahi"],
+  ["Can I switch the sides on the Redfish Nola", REDFISH_SWAP, "redfish"],
+  ["changing the sides on the nola", REDFISH_SWAP, "redfish changing phrasing"],
+  [
+    "can I change them",
+    REDFISH_SWAP,
+    "redfish follow-up change them",
+    { chatId: "test-redfish-followup", recentMessages: ["Tell me about the Nola"] },
+  ],
+  [
+    "Can I switch out the okra or cornbread?",
+    REDFISH_SWAP,
+    "redfish partial sides",
+    { recentMessages: ["Tell me about the Grilled Redfish Nola"] },
+  ],
+  ["Can I change the sides on the halibut", HALIBUT_SWAP, "halibut"],
+]) {
+  const a = generateReply(q, opts || {});
+  if (a !== expected) {
+    console.error(`FAIL ${label} dish-context side swap: "${q}"`);
+    console.error("GOT:", a);
+    process.exitCode = 1;
+  } else {
+    console.log(`PASS ${label} dish-context side swap`);
+  }
+}
+
+const nolaSwap = generateReply("Can I switch the sides on the Redfish Nola");
+const halibutSwap = generateReply("Can I change the sides on the halibut");
+if (
+  !/Hush Puppies/i.test(nolaSwap) ||
+  /house-seasoned fries/i.test(nolaSwap) ||
+  !/house-seasoned fries/i.test(halibutSwap) ||
+  /Hush Puppies/i.test(halibutSwap)
+) {
+  console.error("FAIL side swap alternatives should differ by dish (Nola vs Halibut)");
+  console.error("NOLA:", nolaSwap);
+  console.error("HALIBUT:", halibutSwap);
+  process.exitCode = 1;
+} else {
+  console.log("PASS dish-specific side swap suggestions");
 }
 const kidsStill = generateReply("what sides come with a kids meal");
 if (!/Kids Fish Sticks/i.test(kidsStill) || kidsStill === HH_BURGER_SIDE) {

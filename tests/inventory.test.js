@@ -7,6 +7,7 @@ import {
   findSoldOutMatch,
   findReinstatedMatch,
 } from "../src/store.js";
+import { answerAvailability } from "../src/engine/menu-check.js";
 import { generateReply } from "../src/engine/reply.js";
 import { DATA_DIR } from "../src/paths.js";
 
@@ -18,6 +19,18 @@ function restore() {
 }
 
 try {
+  const availableAsk = answerAvailability("Is the trout 86'd?");
+  if (!availableAsk || !/currently available on our menu tonight/i.test(availableAsk)) {
+    console.error("FAIL conversational 86'd ask must not change inventory and should confirm availability");
+    console.error("GOT:", availableAsk);
+    process.exitCode = 1;
+  } else if (/MANAGER OVERRIDE/i.test(availableAsk)) {
+    console.error("FAIL guest 86'd ask must not trigger manager override copy");
+    process.exitCode = 1;
+  } else {
+    console.log("PASS conversational 86'd ask answers availability only");
+  }
+
   addSoldOut("Broccoli", "test");
   if (!findSoldOutMatch("do you have broccoli").length) {
     console.error("FAIL 86'd broccoli should match a guest ask");

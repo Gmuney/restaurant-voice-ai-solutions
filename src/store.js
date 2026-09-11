@@ -126,6 +126,36 @@ export function findReinstatedMatch(text) {
   return getReinstated().filter((i) => queryMentionsItem(lower, i.name));
 }
 
+export function getChalkboardTakenOff() {
+  const db = readJson("chalkboard-taken-off.json", { removed: [] });
+  if (!Array.isArray(db.removed)) db.removed = [];
+  return db;
+}
+
+export function recordChalkboardTakenOff(name, by) {
+  const db = getChalkboardTakenOff();
+  const key = inventoryKey(name);
+  const label = String(name || "").trim();
+  if (!label) return db.removed;
+  db.removed = db.removed.filter((i) => inventoryKey(i.name) !== key);
+  db.removed.push({
+    name: label,
+    by: by || "manager",
+    at: new Date().toISOString(),
+  });
+  writeJson("chalkboard-taken-off.json", db);
+  return db.removed;
+}
+
+export function clearChalkboardTakenOff(name) {
+  const db = getChalkboardTakenOff();
+  const key = inventoryKey(name);
+  const before = db.removed.length;
+  db.removed = db.removed.filter((i) => inventoryKey(i.name) !== key);
+  if (before !== db.removed.length) writeJson("chalkboard-taken-off.json", db);
+  return before !== db.removed.length;
+}
+
 export function getSessions() {
   return readJson("sessions.json", { sessions: {} });
 }
@@ -246,6 +276,21 @@ export function setChatLang(chatId, language) {
   db.chats[key].updatedAt = new Date().toISOString();
   writeJson("chat-history.json", db);
   return db.chats[key].language;
+}
+
+/** Last chalkboard / menu dish the guest asked about (for side swaps). */
+export function getActiveDish(chatId) {
+  return getChatHistoryDb().chats[String(chatId)]?.activeDish || null;
+}
+
+export function setActiveDish(chatId, dishName) {
+  const db = getChatHistoryDb();
+  const key = String(chatId);
+  if (!db.chats[key]) db.chats[key] = { messages: [], updatedAt: null };
+  db.chats[key].activeDish = dishName ? String(dishName) : null;
+  db.chats[key].updatedAt = new Date().toISOString();
+  writeJson("chat-history.json", db);
+  return db.chats[key].activeDish;
 }
 
 export function appendChatMessage(chatId, message) {
